@@ -32,9 +32,20 @@ function initEventListeners() {
   document.getElementById('closeDriveModalBtn').addEventListener('click', closeDriveModal);
   document.getElementById('driveConfigForm').addEventListener('submit', handleSaveDriveConfig);
   document.getElementById('testDriveConnBtn').addEventListener('click', handleTestDriveConnection);
+  document.getElementById('testDriveUploadBtn').addEventListener('click', handleTestDriveUpload);
   
   // File input reader
   document.getElementById('driveJsonFileInput').addEventListener('change', handleDriveFileSelect);
+
+  // Auto-detect client email on textarea paste/input
+  document.getElementById('service_account_json').addEventListener('input', (e) => {
+    try {
+      const parsed = JSON.parse(e.target.value.trim());
+      if (parsed.client_email) {
+        showDetectedEmail(parsed.client_email);
+      }
+    } catch (_) {}
+  });
 
   // Form submit
   document.getElementById('harvestForm').addEventListener('submit', handleHarvestSubmit);
@@ -510,17 +521,26 @@ function loadPreset(type) {
 // ---------------------------------------------------------------------
 
 async function syncRecord(harvestId) {
-  showToast('Mengunggah ringkasan laporan ke Google Drive...', 'success');
+  // Jika Google Drive belum terhubung, buka modal konfigurasi langsung
+  if (!isDriveConnectedGlobal) {
+    showToast('⚠️ Google Drive belum terhubung. Silakan masukkan kredensial Service Account terlebih dahulu.', 'error');
+    openDriveModal();
+    return;
+  }
+
+  showToast('⏳ Sedang mengunggah laporan panen ke Google Drive...', 'success');
   try {
     const res = await fetch(`${API_BASE}/harvests/${harvestId}/sync`, { method: 'POST' });
     const result = await res.json();
-    if (result.success) {
-      const data = result.data || {};
-      const driveUrl = data.web_view_link || 'https://drive.google.com/';
+    if (result.success && result.data && result.data.web_view_link) {
+      const data = result.data;
+      const driveUrl = data.web_view_link;
       const folder = data.folder_path || 'AgriSensa_Harvest_Reports';
       
       showToast(
-        `📁 ${result.message} <br><a href="${driveUrl}" target="_blank" style="color:#38bdf8; text-decoration:underline; font-weight:600; margin-top:4px; display:inline-block;">🔗 Buka di Google Drive (${folder})</a>`,
+        `📁 <strong>${result.message}</strong><br>` +
+        `<a href="${driveUrl}" target="_blank" style="color:#38bdf8; text-decoration:underline; font-weight:700; margin-top:6px; display:inline-block; font-size:13px;">🔗 Klik di sini untuk Buka di Google Drive</a><br>` +
+        `<span style="font-size:11px; color:#94a3b8;">Folder: ${folder}</span>`,
         'success'
       );
     } else {
@@ -583,13 +603,17 @@ async function fetchDriveStatus() {
       const banner = document.getElementById('driveConnectionBanner');
 
       if (drive.is_connected) {
-        headerText.innerHTML = `Google Drive <span style="color: var(--emerald-400);">● Terhubung</span>`;
+        headerText.innerHTML = `Google Drive <span style="color: var(--emerald-400); font-weight:700;">● Terhubung</span>`;
         bannerTitle.textContent = `🟢 Terhubung Aktif: ${drive.client_email || 'Service Account'}`;
         bannerTitle.style.color = 'var(--emerald-400)';
         bannerSub.textContent = `Folder Utama: ${drive.folder_name} (ID: ${drive.folder_id || 'Otomatis dibuat'})`;
         banner.style.borderLeftColor = 'var(--emerald-500)';
+        
+        if (drive.client_email) {
+          showDetectedEmail(drive.client_email);
+        }
       } else {
-        headerText.innerHTML = `Google Drive <span style="color: var(--amber-500);">● Konfigurasi</span>`;
+        headerText.innerHTML = `Google Drive <span style="color: var(--amber-500); font-weight:700;">● Belum Terhubung</span>`;
         bannerTitle.textContent = `🟡 Belum Terhubung (Mode Simulasi)`;
         bannerTitle.style.color = 'var(--amber-500)';
         bannerSub.textContent = `Masukkan Service Account JSON di bawah untuk menghubungkan Google Drive Anda.`;
@@ -605,6 +629,23 @@ async function fetchDriveStatus() {
     }
   } catch (err) {
     console.error('Gagal mengambil status Google Drive:', err);
+  }
+}
+
+function showDetectedEmail(email) {
+  const emailBox = document.getElementById('serviceAccountEmailBox');
+  const emailInput = document.getElementById('detectedServiceAccountEmail');
+  if (emailBox && emailInput && email) {
+    emailInput.value = email;
+    emailBox.style.display = 'block';
+  }
+}
+
+function copyServiceAccountEmail() {
+  const email = document.getElementById('detectedServiceAccountEmail').value;
+  if (email) {
+    navigator.clipboard.writeText(email);
+    showToast(`📋 Email '${email}' disalin ke clipboard!`, 'success');
   }
 }
 
@@ -625,8 +666,11 @@ function handleDriveFileSelect(event) {
   reader.onload = (e) => {
     try {
       const content = e.target.result;
-      JSON.parse(content); // Validasi format JSON
+      const parsed = JSON.parse(content);
       document.getElementById('service_account_json').value = content;
+      if (parsed.client_email) {
+        showDetectedEmail(parsed.client_email);
+      }
       showToast(`Berkas kunci '${file.name}' berhasil dimuat!`, 'success');
     } catch (err) {
       showToast('Berkas bukan format JSON yang valid.', 'error');
@@ -656,6 +700,9 @@ async function handleTestDriveConnection() {
     const result = await res.json();
     if (res.ok && result.success) {
       showToast(`✅ ${result.message}`, 'success');
+      if (result.data && result.data.client_email) {
+        showDetectedEmail(result.data.client_email);
+      }
     } else {
       showToast(`❌ ${result.detail || result.message || 'Koneksi gagal'}`, 'error');
     }
@@ -663,6 +710,31 @@ async function handleTestDriveConnection() {
     showToast('Terjadi kesalahan saat menguji koneksi Google Drive.', 'error');
   } finally {
     btn.textContent = '🧪 Test Koneksi';
+    btn.disabled = false;
+  }
+}
+
+async function handleTestDriveUpload() {
+  const btn = document.getElementById('testDriveUploadBtn');
+  btn.textContent = '⏳ Mengunggah...';
+  btn.disabled = true;
+
+  try {
+    const res = await fetch(`${API_BASE}/config/google-drive/test-upload`, {
+      method: 'POST'
+    });
+
+    const result = await res.json();
+    if (res.ok && result.success) {
+      const link = result.data.web_view_link;
+      showToast(`✅ ${result.message} <br><a href="${link}" target="_blank" style="color:#38bdf8; text-decoration:underline; font-weight:700;">🔗 Buka File Test di Google Drive</a>`, 'success');
+    } else {
+      showToast(`❌ ${result.detail || result.message || 'Upload gagal'}`, 'error');
+    }
+  } catch (err) {
+    showToast('Terjadi kesalahan saat mengunggah file uji coba.', 'error');
+  } finally {
+    btn.textContent = '📤 Test Upload File';
     btn.disabled = false;
   }
 }
@@ -696,11 +768,11 @@ async function handleSaveDriveConfig(e) {
 
     const result = await res.json();
     if (res.ok && result.success) {
-      showToast(result.message, 'success');
+      showToast(`✅ ${result.message}`, 'success');
       fetchDriveStatus();
       closeDriveModal();
     } else {
-      showToast(result.detail || result.message || 'Gagal menyimpan konfigurasi', 'error');
+      showToast(`❌ ${result.detail || result.message || 'Gagal menyimpan konfigurasi'}`, 'error');
     }
   } catch (err) {
     showToast('Terjadi kesalahan jaringan saat menyimpan konfigurasi.', 'error');
@@ -716,13 +788,13 @@ function showToast(message, type = 'success') {
   toast.className = `toast toast-${type}`;
   toast.innerHTML = `
     <span>${type === 'success' ? '✅' : '⚠️'}</span>
-    <span>${message}</span>
+    <div style="flex:1;">${message}</div>
   `;
   container.appendChild(toast);
 
   setTimeout(() => {
     toast.style.opacity = '0';
     setTimeout(() => toast.remove(), 300);
-  }, 5000);
+  }, 6000);
 }
 

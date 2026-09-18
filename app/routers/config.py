@@ -1,6 +1,7 @@
 import json
 import logging
 from typing import Optional
+from datetime import datetime
 from pydantic import BaseModel, Field
 from fastapi import APIRouter, HTTPException, status
 from app.schemas.common import ApiResponse
@@ -139,3 +140,56 @@ def save_google_drive_config(payload: GoogleDriveConfigRequest):
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Gagal menerapkan konfigurasi Google Drive: {str(e)}"
         )
+
+
+@router.post("/google-drive/test-upload", response_model=ApiResponse[dict])
+def test_upload_to_drive():
+    """Menguji coba upload berkas pengujian langsung ke Google Drive."""
+    if not google_drive_service.is_authenticated:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Google Drive belum terkonfigurasi. Silakan simpan kredensial Service Account terlebih dahulu."
+        )
+
+    try:
+        import io
+        from googleapiclient.http import MediaIoBaseUpload
+
+        service = google_drive_service._service
+        root_id = settings.GOOGLE_DRIVE_ROOT_FOLDER_ID.strip() if settings.GOOGLE_DRIVE_ROOT_FOLDER_ID else None
+        if not root_id:
+            root_id = google_drive_service.get_or_create_folder(settings.GOOGLE_DRIVE_FOLDER_NAME)
+
+        test_content = f"Uji Coba Koneksi AgriSensa Harvest Intelligence ke Google Drive.\nWaktu: {datetime.utcnow().isoformat()}\nService Account: {google_drive_service.client_email}\n".encode("utf-8")
+
+        file_metadata = {
+            "name": "AgriSensa_Connection_Test.txt",
+            "mimeType": "text/plain"
+        }
+        if root_id:
+            file_metadata["parents"] = [root_id]
+
+        media = MediaIoBaseUpload(io.BytesIO(test_content), mimetype="text/plain", resumable=True)
+        file = service.files().create(body=file_metadata, media_body=media, fields="id, name, webViewLink", supportsAllDrives=True).execute()
+
+        # Set read permission
+        try:
+            service.permissions().create(fileId=file.get("id"), body={"type": "anyone", "role": "reader"}, supportsAllDrives=True).execute()
+        except Exception:
+            pass
+
+        return ApiResponse(
+            success=True,
+            message=f"File uji coba 'AgriSensa_Connection_Test.txt' berhasil diunggah ke Google Drive!",
+            data={
+                "file_id": file.get("id"),
+                "file_name": file.get("name"),
+                "web_view_link": file.get("webViewLink")
+            }
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Gagal mengunggah file uji coba ke Google Drive: {str(e)}"
+        )
+
