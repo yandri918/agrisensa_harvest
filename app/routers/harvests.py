@@ -135,10 +135,13 @@ def delete_harvest_record(harvest_id: str):
     )
 
 
+from app.services.google_drive_service import google_drive_service
+
+
 @router.post(
     "/{harvest_id}/sync",
     response_model=ApiResponse[dict],
-    summary="Memicu ulang sinkronisasi ke Google Sheets / n8n",
+    summary="Sinkronisasi dan unggah laporan hasil panen ke Google Drive",
 )
 def trigger_sync_harvest(harvest_id: str):
     record = harvest_service.get_harvest(harvest_id)
@@ -148,17 +151,21 @@ def trigger_sync_harvest(harvest_id: str):
             detail=f"Record panen dengan ID '{harvest_id}' tidak ditemukan."
         )
     
-    # Mock sinkronisasi job trigger
-    sync_result = {
-        "sync_job_id": "sync-" + harvest_id[:8],
-        "harvest_id": harvest_id,
-        "target": "Google Sheets & n8n",
-        "status": "queued",
-        "message": "Sinkronisasi antrean berhasil didaftarkan."
-    }
+    # Unggah laporan panen ke Google Drive
+    drive_result = google_drive_service.upload_harvest_report(record)
     
     return ApiResponse(
-        success=True,
-        message="Job sinkronisasi berhasil dipicu.",
-        data=sync_result
+        success=drive_result.get("success", True),
+        message=drive_result.get("message", "Sinkronisasi Google Drive selesai."),
+        data={
+            "harvest_id": harvest_id,
+            "target": "Google Drive",
+            "drive_status": drive_result.get("mode", "simulation"),
+            "file_id": drive_result.get("file_id"),
+            "file_name": drive_result.get("file_name"),
+            "folder_path": drive_result.get("folder_path"),
+            "web_view_link": drive_result.get("web_view_link"),
+            "details": drive_result
+        }
     )
+

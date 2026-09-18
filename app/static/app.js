@@ -131,8 +131,8 @@ function renderTable(records) {
         </td>
         <td>
           <div style="display: flex; gap: 6px;">
-            <button class="btn btn-secondary btn-sm" onclick="syncRecord('${r.harvest_id}')" title="Sinkronisasi ke Google Sheets">
-              🔄 Sync
+            <button class="btn btn-secondary btn-sm" onclick="syncRecord('${r.harvest_id}')" title="Unggah ke Google Drive">
+              ☁️ Drive
             </button>
             <button class="btn btn-secondary btn-sm" onclick="viewDetail('${r.harvest_id}')" title="Lihat Detail">
               👁️
@@ -500,14 +500,24 @@ function loadPreset(type) {
 // ---------------------------------------------------------------------
 
 async function syncRecord(harvestId) {
+  showToast('Mengunggah ringkasan laporan ke Google Drive...', 'success');
   try {
     const res = await fetch(`${API_BASE}/harvests/${harvestId}/sync`, { method: 'POST' });
     const result = await res.json();
     if (result.success) {
-      showToast(`Sinkronisasi Google Sheets untuk panen ${harvestId.substring(0, 8)}... berhasil dijadwalkan!`, 'success');
+      const data = result.data || {};
+      const driveUrl = data.web_view_link || 'https://drive.google.com/';
+      const folder = data.folder_path || 'AgriSensa_Harvest_Reports';
+      
+      showToast(
+        `📁 ${result.message} <br><a href="${driveUrl}" target="_blank" style="color:#38bdf8; text-decoration:underline; font-weight:600; margin-top:4px; display:inline-block;">🔗 Buka di Google Drive (${folder})</a>`,
+        'success'
+      );
+    } else {
+      showToast(result.message || 'Gagal menyinkronkan ke Google Drive', 'error');
     }
   } catch (err) {
-    showToast('Gagal memicu sinkronisasi', 'error');
+    showToast('Gagal memicu sinkronisasi Google Drive', 'error');
   }
 }
 
