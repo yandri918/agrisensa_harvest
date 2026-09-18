@@ -1,32 +1,30 @@
-const CACHE_NAME = 'agrisensa-harvest-cache-v2';
+const CACHE_NAME = 'agrisensa-harvest-cache-v3';
 const STATIC_ASSETS = [
   '/',
-  '/style.css',
-  '/app.js',
+  '/style.css?v=2.1',
+  '/app.js?v=2.1',
   '/manifest.json',
   'https://cdn.jsdelivr.net/npm/chart.js'
 ];
 
-// Install Event: Cache Core Static Shell
+// Install Event
 self.addEventListener('install', (event) => {
+  self.skipWaiting();
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
-      console.log('[SW] Pre-caching static assets');
-      return cache.addAll(STATIC_ASSETS).catch((err) => {
-        console.warn('[SW] Pre-cache non-fatal error:', err);
-      });
-    }).then(() => self.skipWaiting())
+      return cache.addAll(STATIC_ASSETS).catch(() => {});
+    })
   );
 });
 
-// Activate Event: Clean up old caches
+// Activate Event: Wipe all older caches immediately
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((keys) => {
       return Promise.all(
         keys.map((key) => {
           if (key !== CACHE_NAME) {
-            console.log('[SW] Removing old cache:', key);
+            console.log('[SW] Deleting stale cache:', key);
             return caches.delete(key);
           }
         })
@@ -35,45 +33,22 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-// Fetch Event: Network-first with Cache fallback for API, Cache-first for Static
+// Fetch Event: Network-First (always fresh online, fallback to cache when offline)
 self.addEventListener('fetch', (event) => {
-  const url = new URL(event.request.url);
-
-  // If API request, attempt Network first, fallback to cached or fail
-  if (url.pathname.startsWith('/api/')) {
-    event.respondWith(
-      fetch(event.request).catch(() => {
+  event.respondWith(
+    fetch(event.request)
+      .then((networkResponse) => {
+        if (networkResponse && networkResponse.status === 200) {
+          const responseToCache = networkResponse.clone();
+          caches.open(CACHE_NAME).then((cache) => {
+            cache.put(event.request, responseToCache);
+          });
+        }
+        return networkResponse;
+      })
+      .catch(() => {
         return caches.match(event.request);
       })
-    );
-    return;
-  }
-
-  // For static assets, try Cache first, then Network
-  event.respondWith(
-    caches.match(event.request).then((cachedResponse) => {
-      if (cachedResponse) {
-        // Fetch background update
-        fetch(event.request).then((networkResponse) => {
-          if (networkResponse && networkResponse.status === 200) {
-            caches.open(CACHE_NAME).then((cache) => {
-              cache.put(event.request, networkResponse);
-            });
-          }
-        }).catch(() => {});
-        return cachedResponse;
-      }
-
-      return fetch(event.request).then((networkResponse) => {
-        if (!networkResponse || networkResponse.status !== 200 || networkResponse.type !== 'basic') {
-          return networkResponse;
-        }
-        const responseToCache = networkResponse.clone();
-        caches.open(CACHE_NAME).then((cache) => {
-          cache.put(event.request, responseToCache);
-        });
-        return networkResponse;
-      });
-    })
   );
 });
+
