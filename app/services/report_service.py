@@ -1,5 +1,6 @@
 from datetime import datetime
 from app.schemas.harvest import HarvestRecordResponse
+from app.services.ai_insight_service import ai_insight_service
 
 
 class ReportService:
@@ -9,6 +10,7 @@ class ReportService:
         kpi = record.kpi_summary
         prod_kpi = kpi.production_kpis if kpi else None
         econ_kpi = kpi.economic_kpis if kpi else None
+        ai_eval = ai_insight_service.evaluate_harvest_record(record)
 
         grades_rows = ""
         if record.quality_grades:
@@ -381,6 +383,46 @@ class ReportService:
         {grades_rows}
       </tbody>
     </table>
+
+    <!-- 4. Evaluasi Kinerja AI & Benchmark Nasional -->
+    <h3>🤖 Evaluasi Cerdas AI & Benchmark Nasional (Kementan/BPS)</h3>
+    <div class="summary-box" style="background: #f0fdf4; border-color: #bbf7d0; margin-bottom: 24px;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+        <div>
+          <span style="font-size: 14px; font-weight: 700; color: #166534;">Status Evaluasi: {ai_eval['status_label']}</span>
+          <span style="margin-left: 8px;">{ai_eval['rating_stars']}</span>
+        </div>
+        <div style="font-size: 12px; font-weight: 600; color: #15803d; background: #dcfce7; padding: 4px 10px; border-radius: 6px;">
+          Grade: {ai_eval['status_grade']}
+        </div>
+      </div>
+
+      <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 12px; font-size: 12px;">
+        <div style="background: #ffffff; padding: 8px 12px; border-radius: 6px; border: 1px solid #dcfce7;">
+          <span style="color: #64748b; display: block;">Standar Acuan:</span>
+          <strong>{ai_eval['benchmark_productivity_kg_ha']:,.0f} kg/ha</strong>
+        </div>
+        <div style="background: #ffffff; padding: 8px 12px; border-radius: 6px; border: 1px solid #dcfce7;">
+          <span style="color: #64748b; display: block;">Deviasi Produktivitas:</span>
+          <strong style="color: {'#16a34a' if ai_eval['productivity_delta_percent'] >= 0 else '#dc2626'};">
+            {'+' if ai_eval['productivity_delta_percent'] > 0 else ''}{ai_eval['productivity_delta_percent']:.1f}% vs Standar
+          </strong>
+        </div>
+        <div style="background: #ffffff; padding: 8px 12px; border-radius: 6px; border: 1px solid #dcfce7;">
+          <span style="color: #64748b; display: block;">Loss Rate (Toleransi {ai_eval['max_safe_loss_rate_percent']}%):</span>
+          <strong style="color: {'#16a34a' if ai_eval['actual_loss_rate_percent'] <= ai_eval['max_safe_loss_rate_percent'] else '#dc2626'};">
+            {ai_eval['actual_loss_rate_percent']:.1f}%
+          </strong>
+        </div>
+      </div>
+
+      <div style="border-top: 1px dashed #86efac; padding-top: 10px;">
+        <strong style="font-size: 12px; color: #166534; display: block; margin-bottom: 4px;">Rekomendasi Cerdas Agronomi & Pasca Panen:</strong>
+        <ul style="margin-left: 18px; font-size: 12px; color: #334155; line-height: 1.6;">
+          {''.join(f'<li>{rec}</li>' for rec in ai_eval['recommendations'])}
+        </ul>
+      </div>
+    </div>
 
     <!-- Footer -->
     <div class="footer">

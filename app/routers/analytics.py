@@ -96,3 +96,82 @@ def get_analytics_summary(
         message="Ringkasan agregasi analitik panen berhasil dihitung.",
         data=summary_data
     )
+
+
+from app.services.ai_insight_service import ai_insight_service
+
+
+@router.get(
+    "/ai-insights/{harvest_id}",
+    response_model=ApiResponse[dict],
+    summary="Mengambil evaluasi benchmark AI dan rekomendasi agronomi untuk record panen tertentu",
+)
+def get_harvest_ai_insights(harvest_id: str):
+    record = harvest_service.get_harvest(harvest_id)
+    if not record:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Record panen dengan ID '{harvest_id}' tidak ditemukan."
+        )
+    insights = ai_insight_service.evaluate_harvest_record(record)
+    return ApiResponse(
+        success=True,
+        message="Evaluasi AI dan rekomendasi agronomi berhasil dihitung.",
+        data=insights
+    )
+
+
+@router.get(
+    "/ai-insights",
+    response_model=ApiResponse[dict],
+    summary="Mengambil ringkasan evaluasi benchmark AI agregat berdasarkan filter aktif",
+)
+def get_summary_ai_insights(
+    commodity: Optional[str] = Query(None, description="Filter komoditas"),
+    farm_id: Optional[str] = Query(None, description="Filter kebun"),
+    start_date: Optional[str] = Query(None, description="Tanggal panen awal"),
+    end_date: Optional[str] = Query(None, description="Tanggal panen akhir"),
+):
+    records, _ = harvest_service.list_harvests(
+        commodity=commodity,
+        farm_id=farm_id,
+        start_date=start_date,
+        end_date=end_date,
+        limit=1000
+    )
+
+    if not records:
+        return ApiResponse(
+            success=True,
+            message="Belum ada data untuk evaluasi AI.",
+            data={"insights": ["Belum ada data panen yang tercatat."]}
+        )
+
+    # Calculate summary
+    total_kg = sum(r.harvest_quantity_kg for r in records)
+    total_area = sum(r.land_area_ha for r in records)
+    avg_prod = (total_kg / total_area) if total_area > 0 else 0
+
+    valid_kpis = [r.kpi_summary for r in records if r.kpi_summary]
+    avg_marketable = (
+        sum(k.production_kpis.marketable_yield_percent for k in valid_kpis) / len(valid_kpis)
+        if valid_kpis else 0
+    )
+    avg_roi = (
+        sum(k.economic_kpis.roi_percent for k in valid_kpis) / len(valid_kpis)
+        if valid_kpis else 0
+    )
+
+    summary_dict = {
+        "avg_productivity_kg_per_ha": avg_prod,
+        "avg_marketable_yield_percent": avg_marketable,
+        "avg_roi_percent": avg_roi
+    }
+
+    insights_data = ai_insight_service.evaluate_summary_data(summary_dict, commodity)
+    return ApiResponse(
+        success=True,
+        message="Evaluasi AI agregat berhasil dihitung.",
+        data=insights_data
+    )
+

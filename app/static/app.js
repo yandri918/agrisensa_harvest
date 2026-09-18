@@ -186,6 +186,9 @@ async function fetchDashboardData(filterParams = {}) {
       updateKpiCards(dataSummary.data);
     }
 
+    // 3. Fetch AI Benchmark & Recommendations
+    await fetchAIInsights(filterParams);
+
     // Update status badge
     document.getElementById('apiStatusBadge').style.borderColor = 'rgba(16, 185, 129, 0.4)';
     document.getElementById('apiStatusText').textContent = 'API Live (Connected)';
@@ -194,6 +197,79 @@ async function fetchDashboardData(filterParams = {}) {
     console.error('Error fetching dashboard data:', error);
     showToast('Gagal memuat data dari API. Memeriksa koneksi...', 'error');
     document.getElementById('apiStatusText').textContent = 'API Offline';
+  }
+}
+
+async function fetchAIInsights(filterParams = {}) {
+  try {
+    const params = new URLSearchParams();
+    if (filterParams.commodity) params.append('commodity', filterParams.commodity);
+    if (filterParams.startDate) params.append('start_date', filterParams.startDate);
+    if (filterParams.endDate) params.append('end_date', filterParams.endDate);
+    const queryString = params.toString() ? `?${params.toString()}` : '';
+
+    const res = await fetch(`${API_BASE}/analytics/ai-insights${queryString}`);
+    const result = await res.json();
+
+    if (result.success && result.data) {
+      updateAiInsightCard(result.data);
+    }
+  } catch (err) {
+    console.error('Error fetching AI insights:', err);
+  }
+}
+
+function updateAiInsightCard(data) {
+  const statusEl = document.getElementById('aiBenchmarkStatus');
+  const starsEl = document.getElementById('aiRatingStars');
+  const badgeEl = document.getElementById('aiBenchmarkBadge');
+  const stdProdEl = document.getElementById('aiStdProdText');
+  const actualProdEl = document.getElementById('aiActualProdText');
+  const deltaProdEl = document.getElementById('aiDeltaProdText');
+  const lossEl = document.getElementById('aiLossText');
+  const recListEl = document.getElementById('aiRecommendationList');
+
+  if (statusEl) statusEl.textContent = data.status_label || data.status_grade || 'Optimal';
+  if (starsEl) starsEl.textContent = data.rating_stars || '⭐⭐⭐⭐';
+  
+  if (badgeEl && data.badge_color) {
+    badgeEl.style.borderColor = data.badge_color;
+    badgeEl.style.backgroundColor = `${data.badge_color}22`;
+  }
+
+  if (stdProdEl) {
+    stdProdEl.textContent = data.benchmark_productivity_kg_ha 
+      ? `${data.benchmark_productivity_kg_ha.toLocaleString('id-ID')} kg/ha` 
+      : '-';
+  }
+
+  if (actualProdEl) {
+    actualProdEl.textContent = data.actual_productivity_kg_ha 
+      ? `${data.actual_productivity_kg_ha.toLocaleString('id-ID')} kg/ha` 
+      : '-';
+  }
+
+  if (deltaProdEl) {
+    const delta = data.productivity_delta_percent || 0;
+    const sign = delta > 0 ? '+' : '';
+    deltaProdEl.textContent = `${sign}${delta.toFixed(1)}% vs Acuan`;
+    deltaProdEl.style.color = delta >= 0 ? 'var(--emerald-400)' : '#f43f5e';
+  }
+
+  if (lossEl) {
+    const loss = data.actual_loss_rate_percent || 0;
+    const maxLoss = data.max_safe_loss_rate_percent || 10;
+    lossEl.textContent = `${loss.toFixed(1)}% (Maks ${maxLoss}%)`;
+    lossEl.style.color = loss <= maxLoss ? 'var(--emerald-400)' : '#f43f5e';
+  }
+
+  if (recListEl) {
+    const list = data.recommendations || data.insights || [];
+    if (list.length === 0) {
+      recListEl.innerHTML = `<li>Semua parameter budidaya berada dalam rentang standar optimal.</li>`;
+    } else {
+      recListEl.innerHTML = list.map(item => `<li>${item}</li>`).join('');
+    }
   }
 }
 
