@@ -604,25 +604,18 @@ async function fetchDriveStatus() {
 
       if (drive.is_connected) {
         headerText.innerHTML = `Google Drive <span style="color: var(--emerald-400); font-weight:700;">● Terhubung</span>`;
-        bannerTitle.textContent = `🟢 Terhubung Aktif: ${drive.client_email || 'Service Account'}`;
+        bannerTitle.textContent = `🟢 Terhubung Aktif (Google Drive)`;
         bannerTitle.style.color = 'var(--emerald-400)';
-        bannerSub.textContent = `Folder Utama: ${drive.folder_name} (ID: ${drive.folder_id || 'Otomatis dibuat'})`;
+        bannerSub.textContent = `Penyimpanan: Folder '${drive.folder_name}' di Google Drive Anda.`;
         banner.style.borderLeftColor = 'var(--emerald-500)';
-        
-        if (drive.client_email) {
-          showDetectedEmail(drive.client_email);
-        }
       } else {
         headerText.innerHTML = `Google Drive <span style="color: var(--amber-500); font-weight:700;">● Belum Terhubung</span>`;
-        bannerTitle.textContent = `🟡 Belum Terhubung (Mode Simulasi)`;
+        bannerTitle.textContent = `🟡 Belum Terhubung`;
         bannerTitle.style.color = 'var(--amber-500)';
-        bannerSub.textContent = `Masukkan Service Account JSON di bawah untuk menghubungkan Google Drive Anda.`;
+        bannerSub.textContent = `Ikuti 3 langkah di bawah untuk menghubungkan Google Drive pribadi Anda secara instan.`;
         banner.style.borderLeftColor = 'var(--amber-500)';
       }
 
-      if (drive.folder_id) {
-        document.getElementById('drive_folder_id').value = drive.folder_id;
-      }
       if (drive.folder_name) {
         document.getElementById('drive_folder_name').value = drive.folder_name;
       }
@@ -632,20 +625,11 @@ async function fetchDriveStatus() {
   }
 }
 
-function showDetectedEmail(email) {
-  const emailBox = document.getElementById('serviceAccountEmailBox');
-  const emailInput = document.getElementById('detectedServiceAccountEmail');
-  if (emailBox && emailInput && email) {
-    emailInput.value = email;
-    emailBox.style.display = 'block';
-  }
-}
-
-function copyServiceAccountEmail() {
-  const email = document.getElementById('detectedServiceAccountEmail').value;
-  if (email) {
-    navigator.clipboard.writeText(email);
-    showToast(`📋 Email '${email}' disalin ke clipboard!`, 'success');
+function copyAppsScriptCode() {
+  const codeEl = document.getElementById('appsScriptTemplateCode');
+  if (codeEl) {
+    navigator.clipboard.writeText(codeEl.value);
+    showToast('📋 Kode Google Apps Script disalin ke clipboard! Tempelkan di script.google.com', 'success');
   }
 }
 
@@ -658,31 +642,10 @@ function closeDriveModal() {
   document.getElementById('driveConfigModal').classList.remove('active');
 }
 
-function handleDriveFileSelect(event) {
-  const file = event.target.files[0];
-  if (!file) return;
-
-  const reader = new FileReader();
-  reader.onload = (e) => {
-    try {
-      const content = e.target.result;
-      const parsed = JSON.parse(content);
-      document.getElementById('service_account_json').value = content;
-      if (parsed.client_email) {
-        showDetectedEmail(parsed.client_email);
-      }
-      showToast(`Berkas kunci '${file.name}' berhasil dimuat!`, 'success');
-    } catch (err) {
-      showToast('Berkas bukan format JSON yang valid.', 'error');
-    }
-  };
-  reader.readAsText(file);
-}
-
 async function handleTestDriveConnection() {
-  const jsonStr = document.getElementById('service_account_json').value.trim();
-  if (!jsonStr) {
-    showToast('Silakan tempel atau pilih file JSON Service Account terlebih dahulu.', 'error');
+  const webhookUrl = document.getElementById('drive_webhook_url').value.trim();
+  if (!webhookUrl) {
+    showToast('Silakan masukkan Web App URL Google Apps Script Anda terlebih dahulu.', 'error');
     return;
   }
 
@@ -694,20 +657,17 @@ async function handleTestDriveConnection() {
     const res = await fetch(`${API_BASE}/config/google-drive/test`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ service_account_json: jsonStr })
+      body: JSON.stringify({ webhook_url: webhookUrl })
     });
 
     const result = await res.json();
     if (res.ok && result.success) {
       showToast(`✅ ${result.message}`, 'success');
-      if (result.data && result.data.client_email) {
-        showDetectedEmail(result.data.client_email);
-      }
     } else {
       showToast(`❌ ${result.detail || result.message || 'Koneksi gagal'}`, 'error');
     }
   } catch (err) {
-    showToast('Terjadi kesalahan saat menguji koneksi Google Drive.', 'error');
+    showToast('Terjadi kesalahan saat menguji Webhook Google Apps Script.', 'error');
   } finally {
     btn.textContent = '🧪 Test Koneksi';
     btn.disabled = false;
@@ -727,7 +687,7 @@ async function handleTestDriveUpload() {
     const result = await res.json();
     if (res.ok && result.success) {
       const link = result.data.web_view_link;
-      showToast(`✅ ${result.message} <br><a href="${link}" target="_blank" style="color:#38bdf8; text-decoration:underline; font-weight:700;">🔗 Buka File Test di Google Drive</a>`, 'success');
+      showToast(`✅ ${result.message} <br><a href="${link}" target="_blank" style="color:#38bdf8; text-decoration:underline; font-weight:700;">🔗 Buka File Test di Google Drive Anda</a>`, 'success');
     } else {
       showToast(`❌ ${result.detail || result.message || 'Upload gagal'}`, 'error');
     }
@@ -742,12 +702,11 @@ async function handleTestDriveUpload() {
 async function handleSaveDriveConfig(e) {
   e.preventDefault();
 
-  const jsonStr = document.getElementById('service_account_json').value.trim();
-  const folderId = document.getElementById('drive_folder_id').value.trim();
+  const webhookUrl = document.getElementById('drive_webhook_url').value.trim();
   const folderName = document.getElementById('drive_folder_name').value.trim();
 
-  if (!jsonStr) {
-    showToast('Silakan masukkan JSON Service Account.', 'error');
+  if (!webhookUrl) {
+    showToast('Silakan masukkan Web App URL Google Apps Script.', 'error');
     return;
   }
 
@@ -760,8 +719,7 @@ async function handleSaveDriveConfig(e) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        service_account_json: jsonStr,
-        folder_id: folderId || null,
+        webhook_url: webhookUrl,
         folder_name: folderName || 'AgriSensa_Harvest_Reports'
       })
     });

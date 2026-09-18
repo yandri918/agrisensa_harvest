@@ -19,7 +19,8 @@ class Settings(BaseSettings):
     DATABASE_URL: str = "postgresql://postgres:postgres@localhost:5432/agrisensa_harvest"
     
     # Google Workspace & Drive Integration
-    GOOGLE_SERVICE_ACCOUNT_JSON: str = "" # Raw JSON credential string (Ideal for Railway environment)
+    GOOGLE_DRIVE_WEBHOOK_URL: str = "" # URL Web App dari Google Apps Script (Sederhana & Tanpa GCP)
+    GOOGLE_SERVICE_ACCOUNT_JSON: str = "" # Raw JSON credential string (Opsional untuk GCP)
     GOOGLE_SERVICE_ACCOUNT_FILE: str = "credentials.json" # Path to local JSON file
     GOOGLE_DRIVE_ROOT_FOLDER_ID: str = "" # ID folder root di Google Drive
     GOOGLE_DRIVE_FOLDER_NAME: str = "AgriSensa_Harvest_Reports"

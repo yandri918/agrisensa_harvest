@@ -13,15 +13,17 @@ logger = logging.getLogger("agrisensa.config")
 
 
 class GoogleDriveConfigRequest(BaseModel):
-    service_account_json: str = Field(..., description="Isi teks raw JSON dari Service Account Key")
-    folder_id: Optional[str] = Field(None, description="ID folder root Google Drive")
-    folder_name: Optional[str] = Field("AgriSensa_Harvest_Reports", description="Nama folder default")
+    webhook_url: Optional[str] = Field(None, description="URL Web App Google Apps Script (Metode Simpel & Direkomendasikan)")
+    service_account_json: Optional[str] = Field(None, description="Isi teks raw JSON dari Service Account Key (Opsional)")
+    folder_id: Optional[str] = Field(None, description="ID folder root Google Drive (Opsional)")
+    folder_name: Optional[str] = Field("AgriSensa_Harvest_Reports", description="Nama folder di Google Drive")
 
 
 class GoogleDriveStatusResponse(BaseModel):
     is_connected: bool
+    mode: str
+    webhook_url: Optional[str] = None
     client_email: Optional[str] = None
-    project_id: Optional[str] = None
     folder_id: Optional[str] = None
     folder_name: str
     message: str
@@ -31,28 +33,23 @@ class GoogleDriveStatusResponse(BaseModel):
 def get_google_drive_status():
     """Mengambil status koneksi Google Drive saat ini."""
     is_conn = google_drive_service.is_authenticated
-    client_email = None
-    project_id = None
+    mode = google_drive_service.integration_mode
 
-    if is_conn and google_drive_service._service:
-        try:
-            # Dapatkan informasi client email jika tersedia
-            if settings.GOOGLE_SERVICE_ACCOUNT_JSON:
-                parsed = json.loads(settings.GOOGLE_SERVICE_ACCOUNT_JSON)
-                client_email = parsed.get("client_email")
-                project_id = parsed.get("project_id")
-        except Exception:
-            pass
+    masked_webhook = None
+    if settings.GOOGLE_DRIVE_WEBHOOK_URL:
+        url = settings.GOOGLE_DRIVE_WEBHOOK_URL
+        masked_webhook = url[:35] + "..." + url[-10:] if len(url) > 50 else url
 
-    msg = "Google Drive terhubung dan siap digunakan." if is_conn else "Google Drive belum terhubung. Silakan masukkan kredensial Service Account."
+    msg = "Google Drive terhubung dan siap digunakan." if is_conn else "Google Drive belum terhubung. Silakan masukkan URL Webhook Google Apps Script Anda."
 
     return ApiResponse(
         success=True,
         message="Status Google Drive berhasil diambil.",
         data=GoogleDriveStatusResponse(
             is_connected=is_conn,
-            client_email=client_email,
-            project_id=project_id,
+            mode=mode,
+            webhook_url=masked_webhook,
+            client_email=google_drive_service.client_email,
             folder_id=settings.GOOGLE_DRIVE_ROOT_FOLDER_ID,
             folder_name=settings.GOOGLE_DRIVE_FOLDER_NAME,
             message=msg
@@ -62,83 +59,118 @@ def get_google_drive_status():
 
 @router.post("/google-drive/test", response_model=ApiResponse[dict])
 def test_google_drive_connection(payload: GoogleDriveConfigRequest):
-    """Menguji kredensial Service Account secara langsung ke Google Drive API."""
-    try:
-        from google.oauth2 import service_account
-        from googleapiclient.discovery import build
+    """Menguji koneksi ke Google Drive (baik via Webhook ataupun Service Account)."""
+    # 1. Uji Google Apps Script Webhook
+    if payload.webhook_url and payload.webhook_url.strip():
+        url = payload.webhook_url.strip()
+        if not (url.startswith("https://script.google.com/") or url.startswith("http")):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="URL Webhook tidak valid. Pastikan URL dimulai dengan 'https://script.google.com/macros/s/...'"
+            )
+        try:
+            import httpx
+            resp = httpx.post(
+                url,
+                json={"action": "ping", "message": "AgriSensa Connection Test"},
+                follow_redirects=True,
+                timeout=15.0
+            )
+            if resp.status_code == 200:
+                return ApiResponse(
+                    success=True,
+                    message="Koneksi ke Google Apps Script Webhook BERHASIL!",
+                    data={"mode": "apps_script_webhook", "status": "active", "url": url[:40] + "..."}
+                )
+            else:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Webhook merespons dengan HTTP {resp.status_code}. Pastikan izin deployment diset 'Anyone'."
+                )
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Gagal menghubungi Google Apps Script: {str(e)}"
+            )
 
-        info = json.loads(payload.service_account_json)
-        client_email = info.get("client_email")
-        project_id = info.get("project_id")
+    # 2. Uji Service Account jika disediakan
+    if payload.service_account_json and payload.service_account_json.strip():
+        try:
+            from google.oauth2 import service_account
+            from googleapiclient.discovery import build
 
-        if not client_email:
-            raise ValueError("Berkas JSON tidak memiliki field 'client_email' yang valid.")
+            info = json.loads(payload.service_account_json)
+            client_email = info.get("client_email")
+            if not client_email:
+                raise ValueError("Berkas JSON tidak memiliki 'client_email'.")
 
-        creds = service_account.Credentials.from_service_account_info(
-            info, scopes=["https://www.googleapis.com/auth/drive.file", "https://www.googleapis.com/auth/drive.metadata.readonly"]
-        )
-        service = build("drive", "v3", credentials=creds)
+            creds = service_account.Credentials.from_service_account_info(
+                info, scopes=["https://www.googleapis.com/auth/drive"]
+            )
+            service = build("drive", "v3", credentials=creds)
+            about = service.about().get(fields="user").execute()
+            user_name = about.get("user", {}).get("displayName", "Service Account")
 
-        # Lakukan panggilan uji coba ke Google Drive
-        about = service.about().get(fields="user").execute()
-        user_name = about.get("user", {}).get("displayName", "Service Account")
+            return ApiResponse(
+                success=True,
+                message=f"Koneksi Service Account berhasil: {client_email}",
+                data={"client_email": client_email, "user_name": user_name}
+            )
+        except Exception as sa_err:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Gagal koneksi Service Account: {str(sa_err)}"
+            )
 
-        return ApiResponse(
-            success=True,
-            message=f"Koneksi berhasil! Service Account: {client_email}",
-            data={
-                "client_email": client_email,
-                "project_id": project_id,
-                "user_name": user_name,
-                "verified": True
-            }
-        )
-    except json.JSONDecodeError:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Format JSON tidak valid. Pastikan Anda menyalin seluruh isi file .json kredensial."
-        )
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Gagal menghubungkan ke Google Drive: {str(e)}"
-        )
+    raise HTTPException(
+        status_code=status.HTTP_400_BAD_REQUEST,
+        detail="Harap masukkan URL Webhook Google Apps Script atau JSON Service Account."
+    )
 
 
 @router.post("/google-drive", response_model=ApiResponse[dict])
 def save_google_drive_config(payload: GoogleDriveConfigRequest):
     """Menyimpan dan menerapkan konfigurasi Google Drive pada runtime aplikasi."""
     try:
-        # 1. Validasi JSON
-        info = json.loads(payload.service_account_json)
-        client_email = info.get("client_email")
-        
-        # 2. Update settings runtime
-        settings.GOOGLE_SERVICE_ACCOUNT_JSON = payload.service_account_json.strip()
-        if payload.folder_id:
-            settings.GOOGLE_DRIVE_ROOT_FOLDER_ID = payload.folder_id.strip()
         if payload.folder_name:
             settings.GOOGLE_DRIVE_FOLDER_NAME = payload.folder_name.strip()
+        if payload.folder_id:
+            settings.GOOGLE_DRIVE_ROOT_FOLDER_ID = payload.folder_id.strip()
 
-        # 3. Re-inisialisasi service
-        google_drive_service._init_client()
+        # Opsi Webhook
+        if payload.webhook_url and payload.webhook_url.strip():
+            settings.GOOGLE_DRIVE_WEBHOOK_URL = payload.webhook_url.strip()
+            google_drive_service._init_client()
+            return ApiResponse(
+                success=True,
+                message="Konfigurasi Google Apps Script Webhook berhasil disimpan dan diaktifkan!",
+                data={
+                    "mode": "apps_script_webhook",
+                    "is_connected": True,
+                    "folder_name": settings.GOOGLE_DRIVE_FOLDER_NAME
+                }
+            )
 
-        if not google_drive_service.is_authenticated:
-            raise ValueError("Kredensial tersimpan namun inisialisasi client gagal.")
+        # Opsi Service Account
+        if payload.service_account_json and payload.service_account_json.strip():
+            settings.GOOGLE_SERVICE_ACCOUNT_JSON = payload.service_account_json.strip()
+            google_drive_service._init_client()
+            return ApiResponse(
+                success=True,
+                message="Konfigurasi Service Account berhasil disimpan dan diaktifkan.",
+                data={
+                    "mode": "service_account",
+                    "is_connected": True,
+                    "client_email": google_drive_service.client_email
+                }
+            )
 
-        return ApiResponse(
-            success=True,
-            message=f"Konfigurasi Google Drive berhasil disimpan dan diaktifkan untuk {client_email}.",
-            data={
-                "is_connected": True,
-                "client_email": client_email,
-                "folder_id": settings.GOOGLE_DRIVE_ROOT_FOLDER_ID
-            }
-        )
+        raise ValueError("Harap masukkan URL Webhook atau JSON Service Account.")
+
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Gagal menerapkan konfigurasi Google Drive: {str(e)}"
+            detail=f"Gagal menyimpan konfigurasi: {str(e)}"
         )
 
 
@@ -148,48 +180,29 @@ def test_upload_to_drive():
     if not google_drive_service.is_authenticated:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Google Drive belum terkonfigurasi. Silakan simpan kredensial Service Account terlebih dahulu."
+            detail="Google Drive belum terkonfigurasi. Silakan simpan URL Webhook Google Apps Script terlebih dahulu."
         )
 
     try:
-        import io
-        from googleapiclient.http import MediaIoBaseUpload
+        test_content = (
+            f"🌾 AgriSensa Harvest Intelligence - Uji Coba Koneksi Google Drive\n"
+            f"Waktu Uji: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} WIB\n"
+            f"Status: Berhasil Terkoneksi ke Google Drive Anda!\n"
+        )
 
-        service = google_drive_service._service
-        root_id = settings.GOOGLE_DRIVE_ROOT_FOLDER_ID.strip() if settings.GOOGLE_DRIVE_ROOT_FOLDER_ID else None
-        if not root_id:
-            root_id = google_drive_service.get_or_create_folder(settings.GOOGLE_DRIVE_FOLDER_NAME)
-
-        test_content = f"Uji Coba Koneksi AgriSensa Harvest Intelligence ke Google Drive.\nWaktu: {datetime.utcnow().isoformat()}\nService Account: {google_drive_service.client_email}\n".encode("utf-8")
-
-        file_metadata = {
-            "name": "AgriSensa_Connection_Test.txt",
-            "mimeType": "text/plain"
-        }
-        if root_id:
-            file_metadata["parents"] = [root_id]
-
-        media = MediaIoBaseUpload(io.BytesIO(test_content), mimetype="text/plain", resumable=True)
-        file = service.files().create(body=file_metadata, media_body=media, fields="id, name, webViewLink", supportsAllDrives=True).execute()
-
-        # Set read permission
-        try:
-            service.permissions().create(fileId=file.get("id"), body={"type": "anyone", "role": "reader"}, supportsAllDrives=True).execute()
-        except Exception:
-            pass
+        res = google_drive_service.upload_test_content(
+            text_content=test_content,
+            filename="AgriSensa_Connection_Test.txt"
+        )
 
         return ApiResponse(
             success=True,
-            message=f"File uji coba 'AgriSensa_Connection_Test.txt' berhasil diunggah ke Google Drive!",
-            data={
-                "file_id": file.get("id"),
-                "file_name": file.get("name"),
-                "web_view_link": file.get("webViewLink")
-            }
+            message="Berkas uji coba 'AgriSensa_Connection_Test.txt' BERHASIL diunggah ke Google Drive Anda!",
+            data=res
         )
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Gagal mengunggah file uji coba ke Google Drive: {str(e)}"
+            detail=f"Gagal mengunggah berkas uji coba: {str(e)}"
         )
 

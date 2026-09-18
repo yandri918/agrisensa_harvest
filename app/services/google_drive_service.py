@@ -18,7 +18,7 @@ SCOPES = [
 
 
 class GoogleDriveService:
-    """Service untuk integrasi langsung dan andal dengan Google Drive API v3."""
+    """Service untuk integrasi Google Drive (Mendukung Apps Script Webhook & Service Account)."""
 
     def __init__(self):
         self._service = None
@@ -27,14 +27,19 @@ class GoogleDriveService:
         self._init_client()
 
     def _init_client(self):
-        """Inisialisasi Google Drive client menggunakan Service Account credentials."""
+        """Inisialisasi Google Drive client."""
+        # 1. Periksa apakah Webhook URL telah diset
+        if settings.GOOGLE_DRIVE_WEBHOOK_URL and settings.GOOGLE_DRIVE_WEBHOOK_URL.startswith("http"):
+            self._is_authenticated = True
+            logger.info("Google Drive aktif via Google Apps Script Webhook.")
+            return
+
+        # 2. Coba Service Account jika ada
         try:
             from google.oauth2 import service_account
             from googleapiclient.discovery import build
 
             creds = None
-
-            # 1. Coba baca dari string JSON di Environment (Railway / Cloud)
             if settings.GOOGLE_SERVICE_ACCOUNT_JSON:
                 try:
                     info = json.loads(settings.GOOGLE_SERVICE_ACCOUNT_JSON)
@@ -46,7 +51,6 @@ class GoogleDriveService:
                 except Exception as err:
                     logger.warning(f"Gagal mem-parsing GOOGLE_SERVICE_ACCOUNT_JSON: {err}")
 
-            # 2. Coba baca dari file JSON lokal jika kredensial belum ada
             if not creds and settings.GOOGLE_SERVICE_ACCOUNT_FILE:
                 if os.path.exists(settings.GOOGLE_SERVICE_ACCOUNT_FILE):
                     try:
@@ -56,7 +60,6 @@ class GoogleDriveService:
                         creds = service_account.Credentials.from_service_account_file(
                             settings.GOOGLE_SERVICE_ACCOUNT_FILE, scopes=SCOPES
                         )
-                        logger.info(f"Google Drive API initialized via file: {settings.GOOGLE_SERVICE_ACCOUNT_FILE}")
                     except Exception as f_err:
                         logger.warning(f"Gagal membaca file service account lokal: {f_err}")
 
@@ -64,24 +67,28 @@ class GoogleDriveService:
                 self._service = build("drive", "v3", credentials=creds, cache_discovery=False)
                 self._is_authenticated = True
             else:
-                logger.info("Google Drive Service Account belum dikonfigurasi. Berjalan dalam mode simulasi.")
                 self._is_authenticated = False
                 self._client_email = None
 
         except ImportError:
-            logger.warning("Pustaka google-api-python-client atau google-auth belum terpasang.")
             self._is_authenticated = False
         except Exception as e:
-            logger.error(f"Kesalahan inisialisasi Google Drive API: {e}")
+            logger.error(f"Kesalahan inisialisasi Google Drive: {e}")
             self._is_authenticated = False
 
     @property
     def is_authenticated(self) -> bool:
+        if bool(settings.GOOGLE_DRIVE_WEBHOOK_URL and settings.GOOGLE_DRIVE_WEBHOOK_URL.startswith("http")):
+            return True
         return self._is_authenticated
 
     @property
-    def client_email(self) -> Optional[str]:
-        return self._client_email
+    def integration_mode(self) -> str:
+        if bool(settings.GOOGLE_DRIVE_WEBHOOK_URL and settings.GOOGLE_DRIVE_WEBHOOK_URL.startswith("http")):
+            return "apps_script_webhook"
+        elif self._service:
+            return "service_account"
+        return "unconfigured"
 
     def get_or_create_folder(self, folder_name: str, parent_id: Optional[str] = None) -> Optional[str]:
         """Mencari atau membuat folder baru di Google Drive."""
@@ -223,42 +230,82 @@ class GoogleDriveService:
 
     def upload_harvest_report(self, record: HarvestRecordResponse) -> Dict[str, Any]:
         """
-        Membuat berkas laporan panen (format HTML visual + JSON) dan mengunggahnya ke Google Drive.
+        Membuat berkas laporan panen (format HTML visual) dan mengunggahnya ke Google Drive.
         """
         year_str = str(record.harvest_date.year)
         commodity_clean = record.commodity.replace(" ", "_")
         filename_html = f"AgriSensa_Report_{commodity_clean}_{record.farm_id}_{record.harvest_date}_{record.harvest_id[:8]}.html"
 
         html_content = self.generate_html_report(record)
-        content_bytes = html_content.encode("utf-8")
 
-        # Jika kredensial belum ada, berikan respons simulasi yang informatif
+        # 1. Jika terhubung via Google Apps Script Webhook (Metode Simpel & Direkomendasikan)
+        if settings.GOOGLE_DRIVE_WEBHOOK_URL and settings.GOOGLE_DRIVE_WEBHOOK_URL.startswith("http"):
+            try:
+                import httpx
+                payload = {
+                    "action": "upload_report",
+                    "filename": filename_html,
+                    "content": html_content,
+                    "folder_name": settings.GOOGLE_DRIVE_FOLDER_NAME,
+                    "commodity": record.commodity,
+                    "year": year_str,
+                    "harvest_id": record.harvest_id
+                }
+                resp = httpx.post(
+                    settings.GOOGLE_DRIVE_WEBHOOK_URL,
+                    json=payload,
+                    follow_redirects=True,
+                    timeout=25.0
+                )
+                if resp.status_code == 200:
+                    res_data = resp.json()
+                    if res_data.get("success"):
+                        return {
+                            "success": True,
+                            "mode": "apps_script_webhook",
+                            "file_id": res_data.get("file_id"),
+                            "file_name": res_data.get("file_name", filename_html),
+                            "folder_path": f"{settings.GOOGLE_DRIVE_FOLDER_NAME}/{year_str}/{record.commodity}",
+                            "web_view_link": res_data.get("web_view_link"),
+                            "message": f"Berhasil diunggah ke Google Drive pribadi Anda di folder '{settings.GOOGLE_DRIVE_FOLDER_NAME}'."
+                        }
+                    else:
+                        raise Exception(res_data.get("error", "Error pada script Google Drive"))
+                else:
+                    raise Exception(f"HTTP {resp.status_code}: {resp.text[:150]}")
+            except Exception as w_err:
+                logger.error(f"Gagal upload via Apps Script Webhook: {w_err}")
+                return {
+                    "success": False,
+                    "mode": "error",
+                    "error": str(w_err),
+                    "message": f"Gagal mengunggah ke Google Drive via Webhook: {w_err}"
+                }
+
+        # 2. Jika kredensial belum ada sama sekali
         if not self._is_authenticated or not self._service:
             return {
                 "success": False,
-                "mode": "simulation",
+                "mode": "unconfigured",
                 "file_id": None,
                 "file_name": filename_html,
                 "folder_path": f"AgriSensa/{year_str}/{record.commodity}",
                 "web_view_link": None,
-                "message": "Google Drive belum terhubung. Silakan klik tombol '⚙️ Google Drive' di header dan masukkan Service Account JSON Anda."
+                "message": "Google Drive belum terhubung. Silakan klik tombol '☁️ Google Drive' di header dan masukkan URL Webhook Google Apps Script Anda."
             }
 
+        # 3. Mode Service Account GCP (Fallback)
         try:
             from googleapiclient.http import MediaIoBaseUpload
+            content_bytes = html_content.encode("utf-8")
 
-            # 1. Tentukan target folder
             root_id = settings.GOOGLE_DRIVE_ROOT_FOLDER_ID.strip() if settings.GOOGLE_DRIVE_ROOT_FOLDER_ID else None
-            
-            # Jika tidak ada root_id spesifik, buat/cari folder default
             if not root_id:
                 root_id = self.get_or_create_folder(settings.GOOGLE_DRIVE_FOLDER_NAME)
 
-            # Buat sub-folder tahun & komoditas
             year_folder_id = self.get_or_create_folder(year_str, parent_id=root_id) or root_id
             target_folder_id = self.get_or_create_folder(record.commodity, parent_id=year_folder_id) or year_folder_id
 
-            # 2. Upload berkas ke Google Drive
             file_metadata = {
                 "name": filename_html,
                 "mimeType": "text/html"
@@ -266,31 +313,18 @@ class GoogleDriveService:
             if target_folder_id:
                 file_metadata["parents"] = [target_folder_id]
 
-            media = MediaIoBaseUpload(
-                io.BytesIO(content_bytes),
-                mimetype="text/html",
-                resumable=True
-            )
-
+            media = MediaIoBaseUpload(io.BytesIO(content_bytes), mimetype="text/html", resumable=True)
             file = self._service.files().create(
-                body=file_metadata,
-                media_body=media,
-                fields="id, name, webViewLink, webContentLink",
-                supportsAllDrives=True
+                body=file_metadata, media_body=media, fields="id, name, webViewLink, webContentLink", supportsAllDrives=True
             ).execute()
 
             file_id = file.get("id")
             web_view_link = file.get("webViewLink")
 
-            # 3. Buat izin akses publik agar tautan bisa langsung dibuka
             try:
-                self._service.permissions().create(
-                    fileId=file_id,
-                    body={"type": "anyone", "role": "reader"},
-                    supportsAllDrives=True
-                ).execute()
-            except Exception as perm_err:
-                logger.warning(f"Izin publik tidak dapat diterapkan: {perm_err}")
+                self._service.permissions().create(fileId=file_id, body={"type": "anyone", "role": "reader"}, supportsAllDrives=True).execute()
+            except Exception:
+                pass
 
             return {
                 "success": True,
@@ -308,8 +342,63 @@ class GoogleDriveService:
                 "success": False,
                 "mode": "error",
                 "error": str(err),
-                "message": f"Gagal mengunggah ke Google Drive: {err}. Pastikan folder Drive telah di-share ke email Service Account."
+                "message": f"Gagal mengunggah ke Google Drive: {err}"
             }
+
+    def upload_test_content(self, text_content: str, filename: str = "AgriSensa_Connection_Test.txt") -> Dict[str, Any]:
+        """Menguji coba upload berkas pengujian ke Google Drive."""
+        if settings.GOOGLE_DRIVE_WEBHOOK_URL and settings.GOOGLE_DRIVE_WEBHOOK_URL.startswith("http"):
+            import httpx
+            payload = {
+                "action": "upload_test",
+                "filename": filename,
+                "content": text_content,
+                "folder_name": settings.GOOGLE_DRIVE_FOLDER_NAME
+            }
+            resp = httpx.post(
+                settings.GOOGLE_DRIVE_WEBHOOK_URL,
+                json=payload,
+                follow_redirects=True,
+                timeout=25.0
+            )
+            if resp.status_code == 200:
+                res_data = resp.json()
+                if res_data.get("success"):
+                    return {
+                        "file_id": res_data.get("file_id"),
+                        "file_name": res_data.get("file_name", filename),
+                        "web_view_link": res_data.get("web_view_link")
+                    }
+                else:
+                    raise Exception(res_data.get("error", "Respon error dari Apps Script"))
+            else:
+                raise Exception(f"HTTP {resp.status_code}: {resp.text[:150]}")
+
+        if not self._service:
+            raise ValueError("Google Drive belum terkonfigurasi.")
+
+        from googleapiclient.http import MediaIoBaseUpload
+        root_id = settings.GOOGLE_DRIVE_ROOT_FOLDER_ID.strip() if settings.GOOGLE_DRIVE_ROOT_FOLDER_ID else None
+        if not root_id:
+            root_id = self.get_or_create_folder(settings.GOOGLE_DRIVE_FOLDER_NAME)
+
+        file_metadata = {"name": filename, "mimeType": "text/plain"}
+        if root_id:
+            file_metadata["parents"] = [root_id]
+
+        media = MediaIoBaseUpload(io.BytesIO(text_content.encode("utf-8")), mimetype="text/plain", resumable=True)
+        file = self._service.files().create(body=file_metadata, media_body=media, fields="id, name, webViewLink", supportsAllDrives=True).execute()
+
+        try:
+            self._service.permissions().create(fileId=file.get("id"), body={"type": "anyone", "role": "reader"}, supportsAllDrives=True).execute()
+        except Exception:
+            pass
+
+        return {
+            "file_id": file.get("id"),
+            "file_name": file.get("name"),
+            "web_view_link": file.get("webViewLink")
+        }
 
 
 # Singleton instance
