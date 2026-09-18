@@ -19,9 +19,24 @@ let currentFilters = {
   endDate: ''
 };
 
+const OFFLINE_QUEUE_KEY = 'agrisensa_offline_harvest_queue';
+
+// Register Service Worker for PWA Offline capability
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').then((reg) => {
+      console.log('AgriSensa Service Worker registered successfully:', reg.scope);
+    }).catch((err) => {
+      console.warn('Service Worker registration non-fatal notice:', err);
+    });
+  });
+}
+
 // Init on DOM ready
 document.addEventListener('DOMContentLoaded', () => {
   initEventListeners();
+  initNetworkMonitoring();
+  updateOfflineBanner();
   fetchDashboardData();
   setupLiveCalculator();
 });
@@ -31,6 +46,12 @@ function initEventListeners() {
   document.getElementById('openIngestModalBtn').addEventListener('click', openModal);
   document.getElementById('closeModalBtn').addEventListener('click', closeModal);
   document.getElementById('refreshDataBtn').addEventListener('click', () => fetchDashboardData(currentFilters));
+
+  // Sync button in offline banner
+  const syncBtn = document.getElementById('syncNowBtn');
+  if (syncBtn) {
+    syncBtn.addEventListener('click', syncOfflineQueue);
+  }
 
   // Dynamic Filter Bar controls
   const periodSelect = document.getElementById('filterPeriod');
@@ -614,6 +635,130 @@ function updateLiveCalculation() {
 }
 
 // ---------------------------------------------------------------------
+// OFFLINE PWA & LOCAL STORAGE QUEUE SYNC
+// ---------------------------------------------------------------------
+
+function initNetworkMonitoring() {
+  window.addEventListener('online', () => {
+    updateOfflineBanner();
+    showToast('🌐 Koneksi internet terhubung kembali! Sinkronisasi otomatis...', 'success');
+    syncOfflineQueue();
+  });
+
+  window.addEventListener('offline', () => {
+    updateOfflineBanner();
+    showToast('📡 Anda masuk ke Mode Offline. Data panen akan disimpan secara lokal.', 'error');
+  });
+}
+
+function getOfflineQueue() {
+  try {
+    const raw = localStorage.getItem(OFFLINE_QUEUE_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch (e) {
+    return [];
+  }
+}
+
+function saveToOfflineQueue(item) {
+  const queue = getOfflineQueue();
+  queue.push({
+    ...item,
+    queued_at: new Date().toISOString()
+  });
+  localStorage.setItem(OFFLINE_QUEUE_KEY, JSON.stringify(queue));
+  updateOfflineBanner();
+}
+
+function updateOfflineBanner() {
+  const queue = getOfflineQueue();
+  const banner = document.getElementById('offlineSyncBanner');
+  const countEl = document.getElementById('offlineQueueCount');
+  const isOnline = navigator.onLine;
+
+  if (countEl) countEl.textContent = queue.length;
+
+  if (banner) {
+    if (!isOnline || queue.length > 0) {
+      banner.style.display = 'flex';
+      const titleEl = document.getElementById('offlineBannerTitle');
+      const textEl = document.getElementById('offlineStatusText');
+      if (!isOnline) {
+        if (titleEl) titleEl.textContent = '📡 Mode Offline (Di Lahan / Tanpa Sinyal)';
+        if (textEl) textEl.textContent = `Koneksi internet terputus. ${queue.length} data panen tersimpan di memori lokal perangkat.`;
+      } else {
+        if (titleEl) titleEl.textContent = '🔄 Data Siap Disinkronkan ke Cloud';
+        if (textEl) textEl.textContent = `${queue.length} data panen tersimpan offline siap diunggah ke database server.`;
+      }
+    } else {
+      banner.style.display = 'none';
+    }
+  }
+
+  // Update Network Status Badge
+  const netText = document.getElementById('networkStatusText');
+  const netDot = document.getElementById('networkPulseDot');
+
+  if (netText && netDot) {
+    if (isOnline) {
+      netText.textContent = 'Online';
+      netDot.style.backgroundColor = 'var(--emerald-400)';
+    } else {
+      netText.textContent = 'Offline';
+      netDot.style.backgroundColor = '#f59e0b';
+    }
+  }
+}
+
+async function syncOfflineQueue() {
+  const queue = getOfflineQueue();
+  if (queue.length === 0) {
+    showToast('Tidak ada data panen di antrean offline.', 'success');
+    updateOfflineBanner();
+    return;
+  }
+
+  if (!navigator.onLine) {
+    showToast('Perangkat masih dalam kondisi offline. Sinkronisasi ditunda.', 'error');
+    return;
+  }
+
+  showToast(`⏳ Mulai menyinkronkan ${queue.length} data panen ke cloud...`, 'success');
+  let successCount = 0;
+  const remainingQueue = [];
+
+  for (const item of queue) {
+    try {
+      const res = await fetch(`${API_BASE}/harvests`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(item)
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        successCount++;
+      } else {
+        remainingQueue.push(item);
+      }
+    } catch (err) {
+      remainingQueue.push(item);
+    }
+  }
+
+  localStorage.setItem(OFFLINE_QUEUE_KEY, JSON.stringify(remainingQueue));
+  updateOfflineBanner();
+
+  if (successCount > 0) {
+    showToast(`✅ Berhasil mengunggah ${successCount} data panen ke cloud database!`, 'success');
+    fetchDashboardData(currentFilters);
+  }
+
+  if (remainingQueue.length > 0) {
+    showToast(`⚠️ ${remainingQueue.length} data panen masih belum terunggah.`, 'error');
+  }
+}
+
+// ---------------------------------------------------------------------
 // 6. FORM SUBMIT & PRESETS
 // ---------------------------------------------------------------------
 
@@ -639,6 +784,14 @@ async function handleHarvestSubmit(e) {
     notes: document.getElementById('notes').value
   };
 
+  // If currently offline, immediately save to offline queue
+  if (!navigator.onLine) {
+    saveToOfflineQueue(payload);
+    showToast(`📥 Tersimpan Offline: Data panen ${payload.commodity} diamankan di memori lokal perangkat. Akan otomatis terunggah saat online!`, 'success');
+    closeModal();
+    return;
+  }
+
   try {
     const res = await fetch(`${API_BASE}/harvests`, {
       method: 'POST',
@@ -650,13 +803,15 @@ async function handleHarvestSubmit(e) {
     if (res.ok && result.success) {
       showToast(`Data panen ${payload.commodity} berhasil disimpan dan tervalidasi!`, 'success');
       closeModal();
-      fetchDashboardData();
+      fetchDashboardData(currentFilters);
     } else {
       showToast(result.detail || result.message || 'Gagal menyimpan data panen', 'error');
     }
   } catch (err) {
-    console.error(err);
-    showToast('Terjadi kesalahan jaringan saat mengirim data.', 'error');
+    console.warn('Network error during save, falling back to offline queue:', err);
+    saveToOfflineQueue(payload);
+    showToast(`📥 Terjadi kendala sinyal. Data panen ${payload.commodity} disimpan ke antrean offline lokal!`, 'success');
+    closeModal();
   }
 }
 

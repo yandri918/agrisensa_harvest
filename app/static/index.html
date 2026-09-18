@@ -3,6 +3,9 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#047857">
+  <meta name="description" content="AgriSensa Harvest Intelligence — Offline-first smart harvest tracking, analytics & reporting">
+  <link rel="manifest" href="/manifest.json">
   <title>AgriSensa Harvest Intelligence — Executive Dashboard</title>
   <link rel="stylesheet" href="/style.css">
   <!-- Chart.js for High Performance Visualizations -->
@@ -23,6 +26,10 @@
       </div>
 
       <div class="header-actions">
+        <div class="status-badge" id="networkStatusBadge">
+          <span class="pulse-dot" id="networkPulseDot"></span>
+          <span id="networkStatusText">Online</span>
+        </div>
         <div class="status-badge" id="apiStatusBadge">
           <span class="pulse-dot"></span>
           <span id="apiStatusText">API Live</span>
@@ -32,6 +39,22 @@
         </button>
       </div>
     </header>
+
+    <!-- OFFLINE SYNC NOTIFICATION BANNER -->
+    <div id="offlineSyncBanner" class="offline-banner glass-panel" style="display: none;">
+      <div class="offline-banner-left">
+        <span class="offline-badge-icon">📡</span>
+        <div>
+          <strong id="offlineBannerTitle" style="color: #fbbf24;">Mode Offline Aktif</strong>
+          <span id="offlineStatusText" style="color: var(--text-secondary); font-size: 13px; display: block;">
+            Data disimpan di antrean memori lokal perangkat.
+          </span>
+        </div>
+      </div>
+      <button id="syncNowBtn" class="btn btn-primary btn-sm" style="background: #f59e0b; border-color: #d97706; color: #1e293b; font-weight: 700;">
+        🔄 Sinkronisasi (<span id="offlineQueueCount">0</span>)
+      </button>
+    </div>
 
     <!-- DYNAMIC FILTER & PERIOD BAR -->
     <section class="filter-panel glass-panel">

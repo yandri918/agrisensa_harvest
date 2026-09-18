@@ -807,3 +807,34 @@ textarea:focus {
     transform: translateY(0);
   }
 }
+
+/* Offline PWA Banner */
+.offline-banner {
+  margin-bottom: 24px;
+  padding: 14px 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: rgba(245, 158, 11, 0.1);
+  border: 1px solid rgba(245, 158, 11, 0.3);
+  border-radius: var(--radius-lg);
+  animation: modalEnter 0.3s ease-out;
+}
+
+.offline-banner-left {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.offline-badge-icon {
+  font-size: 24px;
+  background: rgba(245, 158, 11, 0.2);
+  width: 42px;
+  height: 42px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-md);
+  border: 1px solid rgba(245, 158, 11, 0.3);
+}
