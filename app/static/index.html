@@ -150,8 +150,11 @@
           <h2>📋 Riwayat Pencatatan Panen</h2>
           <span class="badge badge-validated" id="recordCountBadge">0 Data</span>
         </div>
-        <div style="display: flex; gap: 12px;">
+        <div style="display: flex; gap: 10px; flex-wrap: wrap;">
           <input type="text" id="searchInput" class="search-input" placeholder="🔍 Cari komoditas, kebun, petani...">
+          <button id="exportCsvBtn" class="btn btn-secondary btn-sm" style="border-color: rgba(16, 185, 129, 0.4); color: #6ee7b7;" title="Unduh seluruh rekapitulasi data panen ke Excel / CSV">
+            📥 Export Excel (CSV)
+          </button>
           <button id="refreshDataBtn" class="btn btn-secondary btn-sm">🔄 Refresh Data</button>
         </div>
       </div>

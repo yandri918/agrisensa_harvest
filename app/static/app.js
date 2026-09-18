@@ -26,6 +26,12 @@ function initEventListeners() {
   document.getElementById('closeModalBtn').addEventListener('click', closeModal);
   document.getElementById('refreshDataBtn').addEventListener('click', fetchDashboardData);
 
+  // Export CSV
+  const exportBtn = document.getElementById('exportCsvBtn');
+  if (exportBtn) {
+    exportBtn.addEventListener('click', handleExportCsv);
+  }
+
   // Form submit
   document.getElementById('harvestForm').addEventListener('submit', handleHarvestSubmit);
 
@@ -33,6 +39,11 @@ function initEventListeners() {
   document.getElementById('searchInput').addEventListener('input', (e) => {
     filterTable(e.target.value);
   });
+}
+
+function handleExportCsv() {
+  showToast('⏳ Sedang menyiapkan data rekapitulasi Excel / CSV...', 'success');
+  window.location.href = `${API_BASE}/harvests/export/csv`;
 }
 
 // ---------------------------------------------------------------------
