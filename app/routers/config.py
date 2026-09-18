@@ -243,7 +243,9 @@ def get_notification_config():
 
 @router.post("/notifications", response_model=ApiResponse[dict])
 def save_notification_config(payload: NotificationConfigRequest):
-    """Menyimpan konfigurasi URL Webhook / WhatsApp."""
+    """Menyimpan konfigurasi URL Webhook / WhatsApp ke database."""
+    from app.services.db import db_manager
+
     if payload.is_enabled is not None:
         notification_service.is_enabled = payload.is_enabled
 
@@ -259,9 +261,17 @@ def save_notification_config(payload: NotificationConfigRequest):
         notification_service.telegram_chat_id = payload.telegram_chat_id.strip()
         settings.TELEGRAM_CHAT_ID = payload.telegram_chat_id.strip()
 
+    # Persist to real database
+    db_manager.save_notification_config({
+        "is_enabled": notification_service.is_enabled,
+        "webhook_url": notification_service.webhook_url,
+        "telegram_token": notification_service.telegram_token,
+        "telegram_chat_id": notification_service.telegram_chat_id
+    })
+
     return ApiResponse(
         success=True,
-        message="Konfigurasi notifikasi WhatsApp / Webhook berhasil disimpan.",
+        message="Konfigurasi notifikasi WhatsApp / Webhook berhasil disimpan secara permanen.",
         data={
             "is_enabled": notification_service.is_enabled,
             "webhook_url": notification_service.webhook_url,

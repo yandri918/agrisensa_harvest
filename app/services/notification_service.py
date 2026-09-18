@@ -11,10 +11,12 @@ class NotificationService:
     """Service untuk pengiriman notifikasi otomatis (WhatsApp, Telegram, Webhook) saat panen tercatat."""
 
     def __init__(self):
-        self.webhook_url: str = settings.WEBHOOK_URL if hasattr(settings, "WEBHOOK_URL") else ""
-        self.telegram_token: str = settings.TELEGRAM_BOT_TOKEN if hasattr(settings, "TELEGRAM_BOT_TOKEN") else ""
-        self.telegram_chat_id: str = settings.TELEGRAM_CHAT_ID if hasattr(settings, "TELEGRAM_CHAT_ID") else ""
-        self.is_enabled: bool = True
+        from app.services.db import db_manager
+        saved_cfg = db_manager.get_notification_config()
+        self.webhook_url: str = saved_cfg.get("webhook_url") or (settings.WEBHOOK_URL if hasattr(settings, "WEBHOOK_URL") else "")
+        self.telegram_token: str = saved_cfg.get("telegram_token") or (settings.TELEGRAM_BOT_TOKEN if hasattr(settings, "TELEGRAM_BOT_TOKEN") else "")
+        self.telegram_chat_id: str = saved_cfg.get("telegram_chat_id") or (settings.TELEGRAM_CHAT_ID if hasattr(settings, "TELEGRAM_CHAT_ID") else "")
+        self.is_enabled: bool = saved_cfg.get("is_enabled", True)
 
     def build_harvest_message(self, record: Any) -> str:
         ai_eval = ai_insight_service.evaluate_harvest_record(record)

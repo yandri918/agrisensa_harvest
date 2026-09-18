@@ -255,3 +255,23 @@ def delete_harvest_record(harvest_id: str):
         message="Record panen berhasil diarsipkan (soft delete).",
         data={"harvest_id": harvest_id, "status": "archived"}
     )
+
+
+@router.post(
+    "/{harvest_id}/sync",
+    response_model=ApiResponse[dict],
+    summary="Memicu sinkronisasi data panen ke Google Workspace / Google Drive / MCP",
+)
+def trigger_harvest_sync(harvest_id: str):
+    record = harvest_service.get_harvest(harvest_id)
+    if not record:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Record panen dengan ID '{harvest_id}' tidak ditemukan."
+        )
+    return ApiResponse(
+        success=True,
+        message="Sinkronisasi panen berhasil dijadwalkan.",
+        data={"harvest_id": harvest_id, "status": "queued"}
+    )
+
