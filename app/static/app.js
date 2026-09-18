@@ -10,8 +10,14 @@ let qualityChartInstance = null;
 let financialChartInstance = null;
 let commodityChartInstance = null;
 
-// Global harvest records cache
+// Global state
 let harvestRecords = [];
+let currentFilters = {
+  commodity: '',
+  period: 'all',
+  startDate: '',
+  endDate: ''
+};
 
 // Init on DOM ready
 document.addEventListener('DOMContentLoaded', () => {
@@ -24,9 +30,39 @@ function initEventListeners() {
   // Modal buttons
   document.getElementById('openIngestModalBtn').addEventListener('click', openModal);
   document.getElementById('closeModalBtn').addEventListener('click', closeModal);
-  document.getElementById('refreshDataBtn').addEventListener('click', fetchDashboardData);
+  document.getElementById('refreshDataBtn').addEventListener('click', () => fetchDashboardData(currentFilters));
 
-  // Export CSV
+  // Dynamic Filter Bar controls
+  const periodSelect = document.getElementById('filterPeriod');
+  const customDateBox = document.getElementById('customDateBox');
+  const commoditySelect = document.getElementById('filterCommodity');
+  const applyBtn = document.getElementById('applyFilterBtn');
+  const resetBtn = document.getElementById('resetFilterBtn');
+
+  if (periodSelect) {
+    periodSelect.addEventListener('change', (e) => {
+      if (e.target.value === 'custom') {
+        customDateBox.style.display = 'flex';
+      } else {
+        customDateBox.style.display = 'none';
+        applyFilters();
+      }
+    });
+  }
+
+  if (commoditySelect) {
+    commoditySelect.addEventListener('change', applyFilters);
+  }
+
+  if (applyBtn) {
+    applyBtn.addEventListener('click', applyFilters);
+  }
+
+  if (resetBtn) {
+    resetBtn.addEventListener('click', resetFilters);
+  }
+
+  // Export CSV with active filters
   const exportBtn = document.getElementById('exportCsvBtn');
   if (exportBtn) {
     exportBtn.addEventListener('click', handleExportCsv);
@@ -41,19 +77,96 @@ function initEventListeners() {
   });
 }
 
+function applyFilters() {
+  const commodity = document.getElementById('filterCommodity').value.trim();
+  const period = document.getElementById('filterPeriod').value;
+  let startDate = '';
+  let endDate = '';
+
+  const now = new Date();
+
+  if (period === '30') {
+    const past = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+    startDate = past.toISOString().split('T')[0];
+    endDate = now.toISOString().split('T')[0];
+  } else if (period === '90') {
+    const past = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+    startDate = past.toISOString().split('T')[0];
+    endDate = now.toISOString().split('T')[0];
+  } else if (period === '365') {
+    startDate = `${now.getFullYear()}-01-01`;
+    endDate = `${now.getFullYear()}-12-31`;
+  } else if (period === 'custom') {
+    startDate = document.getElementById('filterStartDate').value;
+    endDate = document.getElementById('filterEndDate').value;
+  }
+
+  currentFilters = { commodity, period, startDate, endDate };
+  updateFilterSummaryBanner();
+  fetchDashboardData(currentFilters);
+}
+
+function resetFilters() {
+  document.getElementById('filterCommodity').value = '';
+  document.getElementById('filterPeriod').value = 'all';
+  document.getElementById('customDateBox').style.display = 'none';
+  document.getElementById('filterStartDate').value = '';
+  document.getElementById('filterEndDate').value = '';
+
+  currentFilters = { commodity: '', period: 'all', startDate: '', endDate: '' };
+  updateFilterSummaryBanner();
+  fetchDashboardData({});
+  showToast('Semua filter berhasil direset.', 'success');
+}
+
+function updateFilterSummaryBanner() {
+  const bar = document.getElementById('filterSummaryBar');
+  const text = document.getElementById('filterSummaryText');
+  if (!bar || !text) return;
+
+  const parts = [];
+  if (currentFilters.commodity) {
+    parts.push(`Komoditas: <strong>${currentFilters.commodity}</strong>`);
+  }
+  if (currentFilters.startDate || currentFilters.endDate) {
+    parts.push(`Rentang: <strong>${currentFilters.startDate || 'Awal'} s/d ${currentFilters.endDate || 'Sekarang'}</strong>`);
+  } else if (currentFilters.period !== 'all') {
+    parts.push(`Periode: <strong>${currentFilters.period} Hari Terakhir</strong>`);
+  }
+
+  if (parts.length > 0) {
+    bar.style.display = 'flex';
+    text.innerHTML = `Filter Aktif: ${parts.join(' &nbsp;|&nbsp; ')}`;
+  } else {
+    bar.style.display = 'none';
+  }
+}
+
 function handleExportCsv() {
+  const params = new URLSearchParams();
+  if (currentFilters.commodity) params.append('commodity', currentFilters.commodity);
+  if (currentFilters.startDate) params.append('start_date', currentFilters.startDate);
+  if (currentFilters.endDate) params.append('end_date', currentFilters.endDate);
+  const qs = params.toString() ? `?${params.toString()}` : '';
+
   showToast('⏳ Sedang menyiapkan data rekapitulasi Excel / CSV...', 'success');
-  window.location.href = `${API_BASE}/harvests/export/csv`;
+  window.location.href = `${API_BASE}/harvests/export/csv${qs}`;
 }
 
 // ---------------------------------------------------------------------
 // 1. DATA FETCHING & DASHBOARD REFRESH
 // ---------------------------------------------------------------------
 
-async function fetchDashboardData() {
+async function fetchDashboardData(filterParams = {}) {
   try {
+    const params = new URLSearchParams();
+    if (filterParams.commodity) params.append('commodity', filterParams.commodity);
+    if (filterParams.startDate) params.append('start_date', filterParams.startDate);
+    if (filterParams.endDate) params.append('end_date', filterParams.endDate);
+    const queryString = params.toString() ? `?${params.toString()}` : '';
+
     // 1. Fetch records
-    const resRecords = await fetch(`${API_BASE}/harvests`);
+    const resRecords = await fetch(`${API_BASE}/harvests${queryString}`);
     const dataRecords = await resRecords.json();
     
     if (dataRecords.success) {
@@ -63,10 +176,11 @@ async function fetchDashboardData() {
       renderQualityChart(harvestRecords);
       renderFinancialChart(harvestRecords);
       renderCommodityChart(harvestRecords);
+      updateCommodityDropdown(harvestRecords);
     }
 
     // 2. Fetch summary KPIs
-    const resSummary = await fetch(`${API_BASE}/analytics/summary`);
+    const resSummary = await fetch(`${API_BASE}/analytics/summary${queryString}`);
     const dataSummary = await resSummary.json();
     if (dataSummary.success) {
       updateKpiCards(dataSummary.data);
@@ -81,6 +195,25 @@ async function fetchDashboardData() {
     showToast('Gagal memuat data dari API. Memeriksa koneksi...', 'error');
     document.getElementById('apiStatusText').textContent = 'API Offline';
   }
+}
+
+function updateCommodityDropdown(records) {
+  const select = document.getElementById('filterCommodity');
+  if (!select) return;
+
+  const currentVal = select.value;
+  const existingOptions = Array.from(select.options).map(o => o.value);
+
+  records.forEach(r => {
+    if (r.commodity && !existingOptions.includes(r.commodity)) {
+      const opt = document.createElement('option');
+      opt.value = r.commodity;
+      opt.textContent = `🌱 ${r.commodity}`;
+      select.appendChild(opt);
+    }
+  });
+
+  select.value = currentVal;
 }
 
 // ---------------------------------------------------------------------

@@ -33,6 +33,66 @@
       </div>
     </header>
 
+    <!-- DYNAMIC FILTER & PERIOD BAR -->
+    <section class="filter-panel glass-panel">
+      <div class="filter-bar-content">
+        
+        <div class="filter-controls-group">
+          <!-- Filter Komoditas -->
+          <div class="filter-item">
+            <span class="filter-label">🌾 Komoditas:</span>
+            <select id="filterCommodity" class="filter-select">
+              <option value="">Semua Komoditas</option>
+              <option value="Cabai Merah">🌶️ Cabai Merah</option>
+              <option value="Padi Sawah">🌾 Padi Sawah</option>
+              <option value="Jagung Pipil">🌽 Jagung Pipil</option>
+              <option value="Bawang Merah">🧅 Bawang Merah</option>
+              <option value="Tomat">🍅 Tomat</option>
+            </select>
+          </div>
+
+          <!-- Quick Filter Periode -->
+          <div class="filter-item">
+            <span class="filter-label">📅 Periode:</span>
+            <select id="filterPeriod" class="filter-select">
+              <option value="all">Semua Periode</option>
+              <option value="30">30 Hari Terakhir</option>
+              <option value="90">Musim Ini (90 Hari)</option>
+              <option value="365">1 Tahun Terakhir (2026)</option>
+              <option value="custom">Rentang Tanggal Kustom...</option>
+            </select>
+          </div>
+
+          <!-- Custom Date Range -->
+          <div class="filter-item" id="customDateBox" style="display: none;">
+            <span class="filter-label">Rentang:</span>
+            <div style="display: flex; align-items: center; gap: 6px;">
+              <input type="date" id="filterStartDate" class="filter-date-input" title="Tanggal Mulai">
+              <span style="color: var(--text-muted); font-size: 12px;">s/d</span>
+              <input type="date" id="filterEndDate" class="filter-date-input" title="Tanggal Akhir">
+            </div>
+          </div>
+        </div>
+
+        <!-- Filter Action Buttons -->
+        <div class="filter-actions-group">
+          <button type="button" id="applyFilterBtn" class="btn btn-primary btn-sm">
+            🔍 Terapkan Filter
+          </button>
+          <button type="button" id="resetFilterBtn" class="btn btn-secondary btn-sm">
+            ↺ Reset
+          </button>
+        </div>
+
+      </div>
+
+      <!-- Active Filter Summary Status -->
+      <div id="filterSummaryBar" class="filter-summary-bar" style="display: none;">
+        <span class="filter-summary-dot"></span>
+        <span id="filterSummaryText">Menampilkan seluruh komoditas</span>
+      </div>
+    </section>
+
     <!-- EXECUTIVE KPI SUMMARY CARDS -->
     <section class="kpi-grid">
       

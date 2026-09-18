@@ -34,9 +34,15 @@ def get_harvest_kpis(harvest_id: str):
 def get_analytics_summary(
     commodity: Optional[str] = Query(None, description="Filter komoditas"),
     farm_id: Optional[str] = Query(None, description="Filter kebun"),
+    start_date: Optional[str] = Query(None, description="Tanggal panen awal"),
+    end_date: Optional[str] = Query(None, description="Tanggal panen akhir"),
 ):
     records, total_count = harvest_service.list_harvests(
-        commodity=commodity, farm_id=farm_id, limit=1000
+        commodity=commodity,
+        farm_id=farm_id,
+        start_date=start_date,
+        end_date=end_date,
+        limit=1000
     )
 
     if not records:
