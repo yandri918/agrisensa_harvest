@@ -83,6 +83,10 @@ class GoogleDriveService:
         return self._is_authenticated
 
     @property
+    def client_email(self) -> Optional[str]:
+        return self._client_email
+
+    @property
     def integration_mode(self) -> str:
         if bool(settings.GOOGLE_DRIVE_WEBHOOK_URL and settings.GOOGLE_DRIVE_WEBHOOK_URL.startswith("http")):
             return "apps_script_webhook"
