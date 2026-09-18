@@ -364,6 +364,7 @@ function renderTable(records) {
     const kpi = r.kpi_summary;
     const roi = kpi ? kpi.economic_kpis.roi_percent : 0;
     const shortId = r.harvest_id.length > 10 ? r.harvest_id.substring(0, 8) + '...' : r.harvest_id;
+    const statusClass = `status-${r.status.toLowerCase()}`;
 
     return `
       <tr>
@@ -382,16 +383,24 @@ function renderTable(records) {
         <td><span style="color: #38bdf8; font-weight: 600;">Rp ${r.net_profit.toLocaleString('id-ID')}</span></td>
         <td><span class="trend-up">${roi.toFixed(1)}%</span></td>
         <td>
-          <span class="badge ${r.status === 'approved' ? 'badge-approved' : 'badge-validated'}">
-            ${r.status.toUpperCase()}
-          </span>
+          <select class="status-selector-pill ${statusClass}" onchange="updateHarvestStatus('${r.harvest_id}', this.value)" title="Klik untuk mengubah alur status data panen">
+            <option value="validated" ${r.status === 'validated' ? 'selected' : ''}>🔵 VALIDATED</option>
+            <option value="approved" ${r.status === 'approved' ? 'selected' : ''}>🟢 APPROVED</option>
+            <option value="needs_review" ${r.status === 'needs_review' ? 'selected' : ''}>🟠 REVIEW</option>
+            <option value="draft" ${r.status === 'draft' ? 'selected' : ''}>⚪ DRAFT</option>
+          </select>
         </td>
         <td>
-          <div style="display: flex; gap: 6px;">
+          <div style="display: flex; gap: 6px; align-items: center;">
+            ${r.status !== 'approved' ? `
+              <button class="btn btn-primary btn-sm btn-approve-quick" onclick="updateHarvestStatus('${r.harvest_id}', 'approved')" title="Setujui data panen ini secara resmi">
+                ✓ Setujui
+              </button>
+            ` : ''}
             <button class="btn btn-primary btn-sm" onclick="openPdfReport('${r.harvest_id}')" title="Cetak / Simpan Laporan PDF">
-              📄 PDF Laporan
+              📄 PDF
             </button>
-            <button class="btn btn-secondary btn-sm" onclick="viewDetail('${r.harvest_id}')" title="Lihat Detail">
+            <button class="btn btn-secondary btn-sm" onclick="viewDetail('${r.harvest_id}')" title="Lihat Detail Lengkap">
               👁️
             </button>
           </div>
@@ -399,6 +408,26 @@ function renderTable(records) {
       </tr>
     `;
   }).join('');
+}
+
+async function updateHarvestStatus(harvestId, newStatus) {
+  try {
+    showToast(`⏳ Memperbarui status panen menjadi "${newStatus.toUpperCase()}"...`, 'success');
+    const res = await fetch(`${API_BASE}/harvests/${harvestId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: newStatus })
+    });
+    const result = await res.json();
+    if (res.ok && result.success) {
+      showToast(`✅ Status panen ${harvestId.substring(0, 8)} berhasil diubah ke "${newStatus.toUpperCase()}"!`, 'success');
+      fetchDashboardData(currentFilters);
+    } else {
+      showToast(result.detail || result.message || 'Gagal mengubah status panen.', 'error');
+    }
+  } catch (err) {
+    showToast('Terjadi kesalahan koneksi saat mengubah status.', 'error');
+  }
 }
 
 function filterTable(keyword) {

@@ -768,6 +768,73 @@ tr:hover td {
   border: 1px solid rgba(6, 182, 212, 0.25);
 }
 
+.badge-warning, .badge-needs_review {
+  background: rgba(245, 158, 11, 0.12);
+  color: var(--amber-400);
+  border: 1px solid rgba(245, 158, 11, 0.25);
+}
+
+.badge-draft {
+  background: rgba(148, 163, 184, 0.12);
+  color: var(--text-secondary);
+  border: 1px solid rgba(148, 163, 184, 0.25);
+}
+
+/* Interactive Status Selector Dropdown inside Table */
+.status-selector-pill {
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  outline: none;
+  font-family: inherit;
+  transition: var(--transition-smooth);
+  width: auto;
+  border: 1px solid transparent;
+}
+
+.status-selector-pill.status-approved {
+  background: rgba(16, 185, 129, 0.15);
+  color: #34d399;
+  border-color: rgba(16, 185, 129, 0.35);
+}
+
+.status-selector-pill.status-validated {
+  background: rgba(6, 182, 212, 0.15);
+  color: #38bdf8;
+  border-color: rgba(6, 182, 212, 0.35);
+}
+
+.status-selector-pill.status-needs_review {
+  background: rgba(245, 158, 11, 0.15);
+  color: #fbbf24;
+  border-color: rgba(245, 158, 11, 0.35);
+}
+
+.status-selector-pill.status-draft {
+  background: rgba(148, 163, 184, 0.15);
+  color: #94a3b8;
+  border-color: rgba(148, 163, 184, 0.35);
+}
+
+.status-selector-pill option {
+  background: #0f172a;
+  color: #f8fafc;
+  font-weight: 500;
+}
+
+.btn-approve-quick {
+  background: linear-gradient(135deg, #10b981, #059669);
+  padding: 5px 10px;
+  font-size: 11.5px;
+  color: #ffffff;
+}
+
+.btn-approve-quick:hover {
+  background: linear-gradient(135deg, #34d399, #10b981);
+}
+
 /* =====================================================================
    MODAL POPUP & INGESTION FORM (CLEAN 2-COLUMN MODAL)
    ===================================================================== */
