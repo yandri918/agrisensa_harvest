@@ -4,6 +4,7 @@ from fastapi.responses import JSONResponse
 from app.config import settings
 from app.routers.harvests import router as harvests_router
 from app.routers.analytics import router as analytics_router
+from app.routers.config import router as config_router
 from app.schemas.common import ApiResponse
 
 app = FastAPI(
@@ -30,6 +31,8 @@ from fastapi.staticfiles import StaticFiles
 # Include Routers under API_V1_PREFIX
 app.include_router(harvests_router, prefix=settings.API_V1_PREFIX)
 app.include_router(analytics_router, prefix=settings.API_V1_PREFIX)
+app.include_router(config_router, prefix=settings.API_V1_PREFIX)
+
 
 
 @app.get("/health", tags=["Health & Status"])

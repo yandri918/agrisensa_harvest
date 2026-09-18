@@ -17,6 +17,7 @@ let harvestRecords = [];
 document.addEventListener('DOMContentLoaded', () => {
   initEventListeners();
   fetchDashboardData();
+  fetchDriveStatus();
   setupLiveCalculator();
 });
 
@@ -25,6 +26,15 @@ function initEventListeners() {
   document.getElementById('openIngestModalBtn').addEventListener('click', openModal);
   document.getElementById('closeModalBtn').addEventListener('click', closeModal);
   document.getElementById('refreshDataBtn').addEventListener('click', fetchDashboardData);
+
+  // Google Drive Modal
+  document.getElementById('openDriveConfigBtn').addEventListener('click', openDriveModal);
+  document.getElementById('closeDriveModalBtn').addEventListener('click', closeDriveModal);
+  document.getElementById('driveConfigForm').addEventListener('submit', handleSaveDriveConfig);
+  document.getElementById('testDriveConnBtn').addEventListener('click', handleTestDriveConnection);
+  
+  // File input reader
+  document.getElementById('driveJsonFileInput').addEventListener('change', handleDriveFileSelect);
 
   // Form submit
   document.getElementById('harvestForm').addEventListener('submit', handleHarvestSubmit);
@@ -553,6 +563,153 @@ function closeModal() {
   document.getElementById('ingestModal').classList.remove('active');
 }
 
+// ---------------------------------------------------------------------
+// 8. GOOGLE DRIVE CONFIGURATION MODAL & HANDLERS
+// ---------------------------------------------------------------------
+
+let isDriveConnectedGlobal = false;
+
+async function fetchDriveStatus() {
+  try {
+    const res = await fetch(`${API_BASE}/config/google-drive`);
+    const data = await res.json();
+    if (data.success) {
+      const drive = data.data;
+      isDriveConnectedGlobal = drive.is_connected;
+
+      const headerText = document.getElementById('headerDriveStatusText');
+      const bannerTitle = document.getElementById('driveStatusTitle');
+      const bannerSub = document.getElementById('driveStatusSubtitle');
+      const banner = document.getElementById('driveConnectionBanner');
+
+      if (drive.is_connected) {
+        headerText.innerHTML = `Google Drive <span style="color: var(--emerald-400);">● Terhubung</span>`;
+        bannerTitle.textContent = `🟢 Terhubung Aktif: ${drive.client_email || 'Service Account'}`;
+        bannerTitle.style.color = 'var(--emerald-400)';
+        bannerSub.textContent = `Folder Utama: ${drive.folder_name} (ID: ${drive.folder_id || 'Otomatis dibuat'})`;
+        banner.style.borderLeftColor = 'var(--emerald-500)';
+      } else {
+        headerText.innerHTML = `Google Drive <span style="color: var(--amber-500);">● Konfigurasi</span>`;
+        bannerTitle.textContent = `🟡 Belum Terhubung (Mode Simulasi)`;
+        bannerTitle.style.color = 'var(--amber-500)';
+        bannerSub.textContent = `Masukkan Service Account JSON di bawah untuk menghubungkan Google Drive Anda.`;
+        banner.style.borderLeftColor = 'var(--amber-500)';
+      }
+
+      if (drive.folder_id) {
+        document.getElementById('drive_folder_id').value = drive.folder_id;
+      }
+      if (drive.folder_name) {
+        document.getElementById('drive_folder_name').value = drive.folder_name;
+      }
+    }
+  } catch (err) {
+    console.error('Gagal mengambil status Google Drive:', err);
+  }
+}
+
+function openDriveModal() {
+  document.getElementById('driveConfigModal').classList.add('active');
+  fetchDriveStatus();
+}
+
+function closeDriveModal() {
+  document.getElementById('driveConfigModal').classList.remove('active');
+}
+
+function handleDriveFileSelect(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try {
+      const content = e.target.result;
+      JSON.parse(content); // Validasi format JSON
+      document.getElementById('service_account_json').value = content;
+      showToast(`Berkas kunci '${file.name}' berhasil dimuat!`, 'success');
+    } catch (err) {
+      showToast('Berkas bukan format JSON yang valid.', 'error');
+    }
+  };
+  reader.readAsText(file);
+}
+
+async function handleTestDriveConnection() {
+  const jsonStr = document.getElementById('service_account_json').value.trim();
+  if (!jsonStr) {
+    showToast('Silakan tempel atau pilih file JSON Service Account terlebih dahulu.', 'error');
+    return;
+  }
+
+  const btn = document.getElementById('testDriveConnBtn');
+  btn.textContent = '⏳ Menguji...';
+  btn.disabled = true;
+
+  try {
+    const res = await fetch(`${API_BASE}/config/google-drive/test`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ service_account_json: jsonStr })
+    });
+
+    const result = await res.json();
+    if (res.ok && result.success) {
+      showToast(`✅ ${result.message}`, 'success');
+    } else {
+      showToast(`❌ ${result.detail || result.message || 'Koneksi gagal'}`, 'error');
+    }
+  } catch (err) {
+    showToast('Terjadi kesalahan saat menguji koneksi Google Drive.', 'error');
+  } finally {
+    btn.textContent = '🧪 Test Koneksi';
+    btn.disabled = false;
+  }
+}
+
+async function handleSaveDriveConfig(e) {
+  e.preventDefault();
+
+  const jsonStr = document.getElementById('service_account_json').value.trim();
+  const folderId = document.getElementById('drive_folder_id').value.trim();
+  const folderName = document.getElementById('drive_folder_name').value.trim();
+
+  if (!jsonStr) {
+    showToast('Silakan masukkan JSON Service Account.', 'error');
+    return;
+  }
+
+  const saveBtn = document.getElementById('saveDriveBtn');
+  saveBtn.textContent = '⏳ Menyimpan...';
+  saveBtn.disabled = true;
+
+  try {
+    const res = await fetch(`${API_BASE}/config/google-drive`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        service_account_json: jsonStr,
+        folder_id: folderId || null,
+        folder_name: folderName || 'AgriSensa_Harvest_Reports'
+      })
+    });
+
+    const result = await res.json();
+    if (res.ok && result.success) {
+      showToast(result.message, 'success');
+      fetchDriveStatus();
+      closeDriveModal();
+    } else {
+      showToast(result.detail || result.message || 'Gagal menyimpan konfigurasi', 'error');
+    }
+  } catch (err) {
+    showToast('Terjadi kesalahan jaringan saat menyimpan konfigurasi.', 'error');
+  } finally {
+    saveBtn.textContent = '💾 Simpan & Aktifkan';
+    saveBtn.disabled = false;
+  }
+}
+
 function showToast(message, type = 'success') {
   const container = document.getElementById('toastContainer');
   const toast = document.createElement('div');
@@ -566,5 +723,6 @@ function showToast(message, type = 'success') {
   setTimeout(() => {
     toast.style.opacity = '0';
     setTimeout(() => toast.remove(), 300);
-  }, 4000);
+  }, 5000);
 }
+
