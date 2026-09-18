@@ -9,16 +9,10 @@ from app.schemas.common import ApiResponse
 app = FastAPI(
     title=settings.APP_NAME,
     version="1.0.0",
-    description="""
-    ## AgriSensa Harvest Intelligence & Reporting API
-    
-    API terpusat untuk mencatat data panen pertanian (*Data Ingest*), memvalidasi & menormalisasi satuan,
-    menghitung indikator produktivitas & ekonomi (*Analytics Engine*), menyinkronkan data ke Google Workspace,
-    serta menyediakan layanan backend untuk MCP Server AI AgriSensa.
-    """,
-    openapi_url=f"{settings.API_V1_PREFIX}/openapi.json",
-    docs_url="/docs",
-    redoc_url="/redoc",
+    description="AgriSensa Harvest Intelligence API",
+    openapi_url=None,
+    docs_url=None,
+    redoc_url=None,
 )
 
 # CORS Configuration
