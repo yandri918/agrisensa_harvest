@@ -135,37 +135,22 @@ def delete_harvest_record(harvest_id: str):
     )
 
 
-from app.services.google_drive_service import google_drive_service
+from fastapi.responses import HTMLResponse
+from app.services.report_service import report_service
 
 
-@router.post(
-    "/{harvest_id}/sync",
-    response_model=ApiResponse[dict],
-    summary="Sinkronisasi dan unggah laporan hasil panen ke Google Drive",
+@router.get(
+    "/{harvest_id}/report",
+    response_class=HTMLResponse,
+    summary="Menghasilkan halaman laporan resmi panen siap cetak / simpan ke PDF",
 )
-def trigger_sync_harvest(harvest_id: str):
+def get_harvest_printable_report(harvest_id: str):
     record = harvest_service.get_harvest(harvest_id)
     if not record:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Record panen dengan ID '{harvest_id}' tidak ditemukan."
         )
-    
-    # Unggah laporan panen ke Google Drive
-    drive_result = google_drive_service.upload_harvest_report(record)
-    
-    return ApiResponse(
-        success=drive_result.get("success", True),
-        message=drive_result.get("message", "Sinkronisasi Google Drive selesai."),
-        data={
-            "harvest_id": harvest_id,
-            "target": "Google Drive",
-            "drive_status": drive_result.get("mode", "simulation"),
-            "file_id": drive_result.get("file_id"),
-            "file_name": drive_result.get("file_name"),
-            "folder_path": drive_result.get("folder_path"),
-            "web_view_link": drive_result.get("web_view_link"),
-            "details": drive_result
-        }
-    )
+    html_content = report_service.generate_printable_html(record)
+    return HTMLResponse(content=html_content)
 

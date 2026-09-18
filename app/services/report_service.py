@@ -1,0 +1,401 @@
+from datetime import datetime
+from app.schemas.harvest import HarvestRecordResponse
+
+
+class ReportService:
+    """Service untuk membuat dokumen laporan panen resmi (format Cetak / Simpan PDF)."""
+
+    def generate_printable_html(self, record: HarvestRecordResponse) -> str:
+        kpi = record.kpi_summary
+        prod_kpi = kpi.production_kpis if kpi else None
+        econ_kpi = kpi.economic_kpis if kpi else None
+
+        grades_rows = ""
+        if record.quality_grades:
+            for g in record.quality_grades:
+                grades_rows += f"""
+                <tr>
+                  <td><strong>Grade {g.grade}</strong></td>
+                  <td>{g.quantity_kg:,.1f} kg</td>
+                  <td>Rp {g.price_per_kg:,.0f}</td>
+                  <td>Rp {g.quantity_kg * g.price_per_kg:,.0f}</td>
+                  <td>{g.notes or '-'}</td>
+                </tr>
+                """
+        else:
+            grades_rows = "<tr><td colspan='5' style='text-align: center; color: #94a3b8;'>Tidak ada rincian sub-grade khusus</td></tr>"
+
+        productivity_val = f"{prod_kpi.productivity_kg_per_ha:,.1f}" if prod_kpi else "-"
+        roi_val = f"{econ_kpi.roi_percent:.2f}%" if econ_kpi else "-"
+        bep_val = f"Rp {econ_kpi.break_even_price_idr:,.0f}" if econ_kpi else "-"
+        loss_val = f"{prod_kpi.loss_rate_percent:.2f}%" if prod_kpi else "-"
+
+        return f"""<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Laporan Panen - {record.commodity} - {record.farm_id}</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+    
+    * {{ box-sizing: border-box; margin: 0; padding: 0; }}
+    body {{
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background-color: #0f172a;
+      color: #1e293b;
+      padding: 24px;
+      line-height: 1.5;
+    }}
+
+    /* Action bar at top (hidden on print) */
+    .action-bar {{
+      max-width: 850px;
+      margin: 0 auto 20px auto;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: #1e293b;
+      padding: 14px 20px;
+      border-radius: 10px;
+      border: 1px solid #334155;
+    }}
+    .action-btn {{
+      background: #10b981;
+      color: #ffffff;
+      border: none;
+      padding: 10px 20px;
+      font-weight: 600;
+      border-radius: 6px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 14px;
+      text-decoration: none;
+      transition: background 0.2s;
+    }}
+    .action-btn:hover {{ background: #059669; }}
+    .action-btn-sec {{
+      background: #334155;
+      color: #f1f5f9;
+      border: 1px solid #475569;
+    }}
+    .action-btn-sec:hover {{ background: #475569; }}
+
+    /* Document page */
+    .document-page {{
+      max-width: 850px;
+      margin: 0 auto;
+      background: #ffffff;
+      padding: 48px;
+      border-radius: 12px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.25);
+    }}
+
+    .header {{
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      border-bottom: 2px solid #10b981;
+      padding-bottom: 24px;
+      margin-bottom: 28px;
+    }}
+    .brand-title {{
+      font-size: 24px;
+      font-weight: 800;
+      color: #047857;
+      letter-spacing: -0.5px;
+    }}
+    .brand-sub {{
+      font-size: 13px;
+      color: #64748b;
+      margin-top: 4px;
+    }}
+    .doc-meta {{
+      text-align: right;
+      font-size: 12px;
+      color: #475569;
+    }}
+    .badge {{
+      display: inline-block;
+      padding: 4px 12px;
+      background: #dcfce7;
+      color: #15803d;
+      font-weight: 700;
+      border-radius: 999px;
+      font-size: 12px;
+      text-transform: uppercase;
+      margin-bottom: 6px;
+    }}
+
+    /* KPI Highlights Grid */
+    .kpi-grid {{
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+      margin-bottom: 32px;
+    }}
+    .kpi-card {{
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      padding: 16px;
+      text-align: center;
+    }}
+    .kpi-card.highlight {{
+      background: #ecfdf5;
+      border-color: #a7f3d0;
+    }}
+    .kpi-card.highlight .kpi-val {{
+      color: #059669;
+    }}
+    .kpi-val {{
+      font-size: 20px;
+      font-weight: 800;
+      color: #0f172a;
+    }}
+    .kpi-label {{
+      font-size: 11px;
+      font-weight: 600;
+      color: #64748b;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-top: 4px;
+    }}
+
+    /* Section Headings */
+    h3 {{
+      font-size: 14px;
+      font-weight: 700;
+      color: #0f172a;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 12px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid #e2e8f0;
+    }}
+
+    /* Tables */
+    .data-table {{
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 28px;
+      font-size: 13px;
+    }}
+    .data-table th, .data-table td {{
+      padding: 10px 14px;
+      border: 1px solid #e2e8f0;
+      text-align: left;
+    }}
+    .data-table th {{
+      background: #f1f5f9;
+      color: #334155;
+      font-weight: 600;
+    }}
+    .data-table td.money {{
+      font-family: monospace;
+      font-size: 13px;
+    }}
+
+    .summary-box {{
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      padding: 18px;
+      margin-bottom: 28px;
+    }}
+
+    .footer {{
+      margin-top: 40px;
+      padding-top: 20px;
+      border-top: 1px solid #e2e8f0;
+      font-size: 11px;
+      color: #94a3b8;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }}
+
+    /* Print Stylesheet (Clean A4 PDF formatting) */
+    @media print {{
+      body {{
+        background: #ffffff;
+        padding: 0;
+      }}
+      .action-bar {{
+        display: none !important;
+      }}
+      .document-page {{
+        box-shadow: none;
+        padding: 0;
+        max-width: 100%;
+      }}
+      @page {{
+        size: A4 portrait;
+        margin: 15mm;
+      }}
+    }}
+  </style>
+</head>
+<body>
+
+  <!-- Top Action Bar -->
+  <div class="action-bar">
+    <div style="color: #94a3b8; font-size: 13px;">
+      📄 <strong>Laporan Resmi Hasil Panen</strong> — Siap Cetak / Simpan sebagai PDF
+    </div>
+    <div style="display: flex; gap: 10px;">
+      <button class="action-btn" onclick="window.print()">
+        🖨️ Cetak / Simpan PDF
+      </button>
+      <button class="action-btn action-btn-sec" onclick="window.close()">
+        ✕ Tutup
+      </button>
+    </div>
+  </div>
+
+  <!-- Document Page -->
+  <div class="document-page">
+    
+    <!-- Header -->
+    <div class="header">
+      <div>
+        <div class="brand-title">🌾 AGRISENSA HARVEST INTELLIGENCE</div>
+        <div class="brand-sub">Laporan Rekapitulasi & Analisis Kinerja Hasil Panen</div>
+      </div>
+      <div class="doc-meta">
+        <div class="badge">{record.status}</div>
+        <div>No. Dokumen: <code>HARV-{record.harvest_id[:8].upper()}</code></div>
+        <div>Tanggal Cetak: {datetime.now().strftime('%d/%m/%Y %H:%M')} WIB</div>
+      </div>
+    </div>
+
+    <!-- KPI Summary Grid -->
+    <div class="kpi-grid">
+      <div class="kpi-card highlight">
+        <div class="kpi-val">{record.harvest_quantity_kg:,.0f} kg</div>
+        <div class="kpi-label">Total Hasil Panen</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-val">{productivity_val} <span style="font-size:12px; font-weight:normal;">kg/ha</span></div>
+        <div class="kpi-label">Produktivitas</div>
+      </div>
+      <div class="kpi-card highlight">
+        <div class="kpi-val">Rp {record.net_profit:,.0f}</div>
+        <div class="kpi-label">Laba Bersih</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-val">{roi_val}</div>
+        <div class="kpi-label">Return on Investment (ROI)</div>
+      </div>
+    </div>
+
+    <!-- 1. Detail Kebun & Panen -->
+    <h3>📋 Identitas Kebun & Budidaya</h3>
+    <table class="data-table">
+      <tr>
+        <th width="25%">Komoditas / Varietas</th>
+        <td width="35%"><strong>{record.commodity}</strong> ({record.variety or 'Varietas Standar'})</td>
+        <th width="20%">Luas Lahan</th>
+        <td width="20%">{record.land_area_ha} ha ({record.original_land_area} {record.original_land_area_unit})</td>
+      </tr>
+      <tr>
+        <th>ID Kebun / ID Petani</th>
+        <td><code>{record.farm_id}</code> / <code>{record.farmer_id}</code></td>
+        <th>Panen Ke</th>
+        <td>Ke-{record.harvest_sequence}</td>
+      </tr>
+      <tr>
+        <th>Periode Budidaya</th>
+        <td>Tanam: {record.planting_date} &nbsp;→&nbsp; Panen: {record.harvest_date}</td>
+        <th>Kanal Penjualan</th>
+        <td>{record.sales_channel or 'Pasar Umum / Tengkulak'}</td>
+      </tr>
+    </table>
+
+    <!-- 2. Analisis Finansial & Produksi -->
+    <h3>💰 Kinerja Finansial & Mutu Hasil</h3>
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Komponen</th>
+          <th>Kuantitas / Nilai</th>
+          <th>Satuan / Rata-rata</th>
+          <th>Catatan Evaluasi</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Total Hasil Panen</strong></td>
+          <td><strong>{record.harvest_quantity_kg:,.1f} kg</strong></td>
+          <td>100%</td>
+          <td>Volume kotor seluruh panen</td>
+        </tr>
+        <tr>
+          <td>Hasil Layak Jual (Marketable)</td>
+          <td>{record.marketable_quantity_kg:,.1f} kg</td>
+          <td>{((record.marketable_quantity_kg / record.harvest_quantity_kg) * 100) if record.harvest_quantity_kg else 0:.1f}%</td>
+          <td>Memenuhi standar mutu pasar</td>
+        </tr>
+        <tr>
+          <td>Hasil Rusak / Afkir (Damaged)</td>
+          <td>{record.damaged_quantity_kg:,.1f} kg</td>
+          <td>Loss Rate: {loss_val}</td>
+          <td>{record.damage_cause or 'Kerusakan fisik / hama wajar'}</td>
+        </tr>
+        <tr style="background: #f8fafc;">
+          <td><strong>Pendapatan Kotor (Omset)</strong></td>
+          <td class="money" style="color: #059669;"><strong>Rp {record.gross_revenue:,.0f}</strong></td>
+          <td>Rp {record.selling_price_per_kg:,.0f} / kg</td>
+          <td>Total penerimaan penjualan</td>
+        </tr>
+        <tr style="background: #f8fafc;">
+          <td><strong>Total Biaya Produksi</strong></td>
+          <td class="money" style="color: #dc2626;"><strong>Rp {record.total_production_cost:,.0f}</strong></td>
+          <td>Rp {(record.total_production_cost / record.harvest_quantity_kg) if record.harvest_quantity_kg else 0:,.0f} / kg</td>
+          <td>Biaya input, tenaga kerja, operasional</td>
+        </tr>
+        <tr style="background: #ecfdf5;">
+          <td><strong>Keuntungan Bersih (Net Profit)</strong></td>
+          <td class="money" style="color: #047857; font-size: 15px;"><strong>Rp {record.net_profit:,.0f}</strong></td>
+          <td>BEP: {bep_val} / kg</td>
+          <td>Margin laba bersih tercapai</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <!-- 3. Rincian Mutu / Grade -->
+    <h3>🎯 Rincian Mutu & Grading</h3>
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Grade / Klasifikasi</th>
+          <th>Kuantitas (kg)</th>
+          <th>Harga Satuan (IDR/kg)</th>
+          <th>Subtotal Penjualan (IDR)</th>
+          <th>Keterangan Mutu</th>
+        </tr>
+      </thead>
+      <tbody>
+        {grades_rows}
+      </tbody>
+    </table>
+
+    <!-- Footer -->
+    <div class="footer">
+      <div>
+        ID Panen: <code>{record.harvest_id}</code> | Sistem AgriSensa AI Engine v1.0
+      </div>
+      <div>
+        Dicetak secara otomatis dari <strong>AgriSensa Harvest Intelligence</strong>
+      </div>
+    </div>
+
+  </div>
+
+</body>
+</html>"""
+
+
+report_service = ReportService()

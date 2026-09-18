@@ -23,9 +23,6 @@
       </div>
 
       <div class="header-actions">
-        <button id="openDriveConfigBtn" class="btn btn-secondary btn-sm" style="border-color: rgba(56, 189, 248, 0.4);">
-          ☁️ <span id="headerDriveStatusText">Google Drive (Konfigurasi)</span>
-        </button>
         <div class="status-badge" id="apiStatusBadge">
           <span class="pulse-dot"></span>
           <span id="apiStatusText">API Live</span>
@@ -350,103 +347,6 @@
           </div>
 
         </div>
-      </div>
-
-    </div>
-  </div>
-
-  <!-- MODAL GOOGLE DRIVE CONFIGURATION -->
-  <div class="modal-overlay" id="driveConfigModal">
-    <div class="modal-container" style="max-width: 820px; grid-template-columns: 1fr;">
-      
-      <div style="padding: 32px;">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-          <div style="display: flex; align-items: center; gap: 10px;">
-            <span style="font-size: 26px;">☁️</span>
-            <div>
-              <h2 style="font-size: 20px;">Integrasi Google Drive Pribadi (Mudah & Cepat)</h2>
-              <p style="font-size: 12px; color: var(--text-secondary);">Tanpa Google Cloud Console / Service Account yang rumit — file langsung masuk ke Google Drive Anda</p>
-            </div>
-          </div>
-          <button id="closeDriveModalBtn" style="background: none; border: none; color: var(--text-muted); font-size: 22px; cursor: pointer;">✕</button>
-        </div>
-
-        <!-- Connection Status Banner -->
-        <div class="glass-panel" id="driveConnectionBanner" style="padding: 16px; margin-bottom: 20px; border-left: 4px solid var(--amber-500); display: flex; justify-content: space-between; align-items: center;">
-          <div>
-            <span style="font-size: 11px; color: var(--text-muted); display: block;">STATUS INTEGRASI GOOGLE DRIVE</span>
-            <strong id="driveStatusTitle" style="color: var(--amber-500); font-size: 14px;">Belum Terhubung</strong>
-            <span id="driveStatusSubtitle" style="font-size: 12px; color: var(--text-secondary); display: block; margin-top: 2px;">
-              Tempelkan URL Web App Google Apps Script di bawah untuk mengaktifkan sinkronisasi otomatis.
-            </span>
-          </div>
-          <button type="button" class="btn btn-secondary btn-sm" onclick="fetchDriveStatus()">🔄 Cek Status</button>
-        </div>
-
-        <!-- Step-by-Step 3 Easy Steps Card -->
-        <div style="background: rgba(16, 185, 129, 0.05); border: 1px solid rgba(16, 185, 129, 0.25); border-radius: var(--radius-md); padding: 18px; margin-bottom: 20px;">
-          <h4 style="font-size: 13px; color: var(--emerald-400); margin-bottom: 12px; display: flex; align-items: center; gap: 6px;">
-            <span>⚡</span> <span>3 Langkah Mudah Menghubungkan Google Drive Anda:</span>
-          </h4>
-          
-          <div style="display: flex; flex-direction: column; gap: 14px; font-size: 12px; color: var(--text-secondary); line-height: 1.6;">
-            <div>
-              <strong style="color: var(--emerald-300);">1. Buat Script di Google:</strong> Buka <a href="https://script.google.com/home/start" target="_blank" style="color: #38bdf8; text-decoration: underline; font-weight: 600;">script.google.com ↗</a> (login dengan akun Google Anda), klik <em>New Project</em>, lalu ganti isinya dengan kode di bawah:
-              <div style="position: relative; margin-top: 8px;">
-                <textarea id="appsScriptTemplateCode" readonly rows="7" style="font-family: monospace; font-size: 11px; background: rgba(0,0,0,0.4); color: #86efac; border: 1px solid rgba(16,185,129,0.3); border-radius: 6px; width: 100%; padding: 10px; resize: none;">function doPost(e) {
-  try {
-    var data = JSON.parse(e.postData.contents);
-    if (data.action === "ping") return ContentService.createTextOutput(JSON.stringify({success:true})).setMimeType(ContentService.MimeType.JSON);
-    var folderName = data.folder_name || "AgriSensa_Harvest_Reports";
-    var folders = DriveApp.getFoldersByName(folderName);
-    var targetFolder = folders.hasNext() ? folders.next() : DriveApp.createFolder(folderName);
-    var filename = data.filename || ("AgriSensa_Report_" + new Date().toISOString() + ".html");
-    var file = targetFolder.createFile(filename, data.content, filename.endsWith(".html") ? MimeType.HTML : MimeType.PLAIN_TEXT);
-    try { file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW); } catch (e) {}
-    return ContentService.createTextOutput(JSON.stringify({
-      success: true, file_id: file.getId(), file_name: file.getName(), web_view_link: file.getUrl()
-    })).setMimeType(ContentService.MimeType.JSON);
-  } catch (err) {
-    return ContentService.createTextOutput(JSON.stringify({success: false, error: err.toString()})).setMimeType(ContentService.MimeType.JSON);
-  }
-}</textarea>
-                <button type="button" class="btn btn-secondary btn-sm" onclick="copyAppsScriptCode()" style="position: absolute; top: 8px; right: 8px; background: rgba(16,185,129,0.2); border-color: rgba(16,185,129,0.4); color:#6ee7b7;">📋 Salin Kode Script</button>
-              </div>
-            </div>
-
-            <div>
-              <strong style="color: var(--emerald-300);">2. Deploy sebagai Web App:</strong> 
-              Klik tombol biru <strong>Deploy</strong> (kanan atas) → <strong>New deployment</strong> → Klik icon ⚙️ pilih <strong>Web app</strong> → Set <em>Execute as</em>: <strong>Me</strong> dan <em>Who has access</em>: <strong>Anyone</strong> → Klik <strong>Deploy</strong> → Salin <strong>Web app URL</strong> yang dihasilkan.
-            </div>
-
-            <div>
-              <strong style="color: var(--emerald-300);">3. Tempel URL & Selesai:</strong> Tempelkan Web App URL tersebut pada form di bawah dan klik <strong>Simpan & Aktifkan</strong>.
-            </div>
-          </div>
-        </div>
-
-        <form id="driveConfigForm">
-          
-          <div class="form-group">
-            <label>Google Apps Script Web App URL <span style="color: var(--emerald-400);">*</span></label>
-            <input type="url" id="drive_webhook_url" required placeholder="https://script.google.com/macros/s/AKfycbx.../exec" style="font-family: monospace; font-size: 13px;">
-            <span style="font-size: 11px; color: var(--text-muted);">URL dari hasil deployment Web App Google Apps Script Anda</span>
-          </div>
-
-          <div class="form-group">
-            <label>Nama Folder Penyimpanan di Google Drive</label>
-            <input type="text" id="drive_folder_name" value="AgriSensa_Harvest_Reports">
-            <span style="font-size: 11px; color: var(--text-muted);">Folder ini akan otomatis dibuat di Google Drive pribadi Anda jika belum ada</span>
-          </div>
-
-          <div style="display: flex; gap: 10px; margin-top: 24px; flex-wrap: wrap;">
-            <button type="button" class="btn btn-secondary" id="testDriveConnBtn" style="flex: 1;">🧪 Test Koneksi</button>
-            <button type="button" class="btn btn-secondary" id="testDriveUploadBtn" style="flex: 1;">📤 Test Upload File</button>
-            <button type="submit" class="btn btn-primary" id="saveDriveBtn" style="flex: 1.5;">💾 Simpan & Aktifkan</button>
-          </div>
-
-        </form>
-
       </div>
 
     </div>
