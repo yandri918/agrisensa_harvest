@@ -4,10 +4,14 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="theme-color" content="#047857">
-  <meta name="description" content="AgriSensa Harvest Intelligence — Offline-first smart harvest tracking, analytics & reporting">
+  <meta name="description" content="AgriSensa Harvest Intelligence — Sistem Pintar Pencatatan, Analisis & Pelaporan Panen Pertanian">
   <link rel="manifest" href="/manifest.json">
-  <title>AgriSensa Harvest Intelligence — Executive Dashboard</title>
-  <link rel="stylesheet" href="/style.css?v=2.1">
+  <title>AgriSensa Harvest — Dashboard Rekapitulasi & Intelijen Panen</title>
+  <!-- Google Fonts: Plus Jakarta Sans for ultra-clean readability -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/style.css?v=3.1">
   <!-- Chart.js for High Performance Visualizations -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
@@ -15,29 +19,33 @@
 
   <div class="app-container">
     
-    <!-- HEADER BAR -->
+    <!-- TOP NAVIGATION & BRAND HEADER -->
     <header class="header-bar glass-panel">
       <div class="brand-section">
         <div class="brand-logo">🌾</div>
         <div class="brand-title">
-          <h1>AgriSensa Harvest Intelligence</h1>
-          <p>From Field Data to Actionable Agricultural Intelligence & Reporting</p>
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <h1>AgriSensa Harvest</h1>
+            <span class="brand-version-badge">v1.0</span>
+          </div>
+          <p>Sistem Cerdas Pencatatan, Analisis KPI & Pelaporan Hasil Panen</p>
         </div>
       </div>
 
       <div class="header-actions">
-        <div class="status-badge" id="networkStatusBadge">
+        <!-- Live System Status Indicator -->
+        <div class="status-indicator-pill" id="systemStatusPill" title="Status Koneksi & Database">
           <span class="pulse-dot" id="networkPulseDot"></span>
-          <span id="networkStatusText">Online</span>
+          <span id="apiStatusText" style="font-size: 12px; font-weight: 600; color: #a7f3d0;">Online & Siap</span>
         </div>
-        <div class="status-badge" id="apiStatusBadge">
-          <span class="pulse-dot"></span>
-          <span id="apiStatusText">API Live</span>
-        </div>
-        <button id="openWebhookModalBtn" class="btn btn-secondary">
-          🔔 Notifikasi WA / Webhook
+
+        <!-- Quick Notifications Config Button -->
+        <button id="openWebhookModalBtn" class="btn btn-secondary btn-header" title="Pengaturan Notifikasi Otomatis WhatsApp / Webhook">
+          🔔 Notifikasi WA
         </button>
-        <button id="openIngestModalBtn" class="btn btn-primary">
+
+        <!-- Main Ingest Action Button -->
+        <button id="openIngestModalBtn" class="btn btn-primary btn-header btn-highlight">
           ➕ Input Data Panen
         </button>
       </div>
@@ -48,25 +56,25 @@
       <div class="offline-banner-left">
         <span class="offline-badge-icon">📡</span>
         <div>
-          <strong id="offlineBannerTitle" style="color: #fbbf24;">Mode Offline Aktif</strong>
+          <strong id="offlineBannerTitle" style="color: #fbbf24;">Mode Offline Lapangan Aktif</strong>
           <span id="offlineStatusText" style="color: var(--text-secondary); font-size: 13px; display: block;">
-            Data disimpan di antrean memori lokal perangkat.
+            Koneksi internet terputus. Data disimpan di antrean lokal perangkat Anda.
           </span>
         </div>
       </div>
       <button id="syncNowBtn" class="btn btn-primary btn-sm" style="background: #f59e0b; border-color: #d97706; color: #1e293b; font-weight: 700;">
-        🔄 Sinkronisasi (<span id="offlineQueueCount">0</span>)
+        🔄 Sinkronisasi Sekarang (<span id="offlineQueueCount">0</span>)
       </button>
     </div>
 
-    <!-- DYNAMIC FILTER & PERIOD BAR -->
+    <!-- DYNAMIC FILTER & TIME RANGE PANEL -->
     <section class="filter-panel glass-panel">
       <div class="filter-bar-content">
         
         <div class="filter-controls-group">
           <!-- Filter Komoditas -->
           <div class="filter-item">
-            <span class="filter-label">🌾 Komoditas:</span>
+            <label class="filter-label" for="filterCommodity">🌱 Komoditas:</label>
             <select id="filterCommodity" class="filter-select">
               <option value="">Semua Komoditas</option>
               <option value="Cabai Merah">🌶️ Cabai Merah</option>
@@ -79,7 +87,7 @@
 
           <!-- Quick Filter Periode -->
           <div class="filter-item">
-            <span class="filter-label">📅 Periode:</span>
+            <label class="filter-label" for="filterPeriod">📅 Periode:</label>
             <select id="filterPeriod" class="filter-select">
               <option value="all">Semua Periode</option>
               <option value="30">30 Hari Terakhir</option>
@@ -89,9 +97,9 @@
             </select>
           </div>
 
-          <!-- Custom Date Range -->
+          <!-- Custom Date Range Picker -->
           <div class="filter-item" id="customDateBox" style="display: none;">
-            <span class="filter-label">Rentang:</span>
+            <label class="filter-label">Rentang Tanggal:</label>
             <div style="display: flex; align-items: center; gap: 6px;">
               <input type="date" id="filterStartDate" class="filter-date-input" title="Tanggal Mulai">
               <span style="color: var(--text-muted); font-size: 12px;">s/d</span>
@@ -100,58 +108,58 @@
           </div>
         </div>
 
-        <!-- Filter Action Buttons -->
+        <!-- Filter Actions -->
         <div class="filter-actions-group">
           <button type="button" id="applyFilterBtn" class="btn btn-primary btn-sm">
             🔍 Terapkan Filter
           </button>
-          <button type="button" id="resetFilterBtn" class="btn btn-secondary btn-sm">
+          <button type="button" id="resetFilterBtn" class="btn btn-secondary btn-sm" title="Reset filter ke kondisi awal">
             ↺ Reset
           </button>
         </div>
 
       </div>
 
-      <!-- Active Filter Summary Status -->
+      <!-- Active Filter Summary Status Banner -->
       <div id="filterSummaryBar" class="filter-summary-bar" style="display: none;">
         <span class="filter-summary-dot"></span>
-        <span id="filterSummaryText">Menampilkan seluruh komoditas</span>
+        <span id="filterSummaryText">Menampilkan seluruh data</span>
       </div>
     </section>
 
-    <!-- EXECUTIVE KPI SUMMARY CARDS -->
+    <!-- EXECUTIVE KPI SUMMARY CARDS (6 METRIKS UTAMA) -->
     <section class="kpi-grid">
       
       <div class="kpi-card glass-panel">
         <div class="kpi-header">
-          <span class="kpi-title">TOTAL PANEN TERCATAT</span>
+          <span class="kpi-title">TOTAL VOLUME PANEN</span>
           <div class="kpi-icon">📦</div>
         </div>
         <div class="kpi-value" id="kpiTotalHarvest">-</div>
         <div class="kpi-footer">
-          <span class="trend-up">↑ Tervalidasi</span> dari seluruh kebun
+          <span class="trend-up" id="recordCountBadge">0 Data Panen</span>
         </div>
       </div>
 
       <div class="kpi-card glass-panel">
         <div class="kpi-header">
-          <span class="kpi-title">PRODUKTIVITAS RATA-RATA</span>
+          <span class="kpi-title">RATA-RATA PRODUKTIVITAS</span>
           <div class="kpi-icon">⚡</div>
         </div>
         <div class="kpi-value" id="kpiAvgProductivity">-</div>
         <div class="kpi-footer">
-          <span class="trend-up" id="kpiProductivitySub">kg / hektare</span>
+          <span class="trend-up" id="kpiProductivitySub">kg per hektare</span>
         </div>
       </div>
 
       <div class="kpi-card glass-panel">
         <div class="kpi-header">
-          <span class="kpi-title">TOTAL PENDAPATAN KOTOR</span>
+          <span class="kpi-title">TOTAL PENDAPATAN (OMSET)</span>
           <div class="kpi-icon">💰</div>
         </div>
         <div class="kpi-value" id="kpiTotalRevenue">-</div>
         <div class="kpi-footer">
-          <span>Estimasi penerimaan panen</span>
+          <span>Penerimaan kotor hasil panen</span>
         </div>
       </div>
 
@@ -160,7 +168,7 @@
           <span class="kpi-title">KEUNTUNGAN BERSIH</span>
           <div class="kpi-icon">📈</div>
         </div>
-        <div class="kpi-value" id="kpiNetProfit">-</div>
+        <div class="kpi-value" id="kpiNetProfit" style="color: #38bdf8;">-</div>
         <div class="kpi-footer">
           <span class="trend-up" id="kpiAvgRoi">ROI: - %</span>
         </div>
@@ -168,12 +176,12 @@
 
       <div class="kpi-card glass-panel">
         <div class="kpi-header">
-          <span class="kpi-title">MARKETABLE YIELD (MUTU)</span>
+          <span class="kpi-title">MUTU LAYAK JUAL (YIELD)</span>
           <div class="kpi-icon">🎯</div>
         </div>
         <div class="kpi-value" id="kpiMarketableYield">-</div>
         <div class="kpi-footer">
-          <span id="kpiLossRate">Loss Rate: - %</span>
+          <span id="kpiLossRate" style="color: var(--text-secondary);">Standar grade pasar</span>
         </div>
       </div>
 
@@ -542,6 +550,6 @@
   <!-- TOAST CONTAINER -->
   <div class="toast-container" id="toastContainer"></div>
 
-  <script src="/app.js?v=2.1"></script>
+  <script src="/app.js?v=3.1"></script>
 </body>
 </html>

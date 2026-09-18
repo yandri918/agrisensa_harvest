@@ -1,8 +1,8 @@
-const CACHE_NAME = 'agrisensa-harvest-cache-v3';
+const CACHE_NAME = 'agrisensa-harvest-cache-v3.1';
 const STATIC_ASSETS = [
   '/',
-  '/style.css?v=2.1',
-  '/app.js?v=2.1',
+  '/style.css?v=3.1',
+  '/app.js?v=3.1',
   '/manifest.json',
   'https://cdn.jsdelivr.net/npm/chart.js'
 ];
