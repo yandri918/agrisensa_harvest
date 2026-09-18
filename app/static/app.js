@@ -3,6 +3,7 @@
 // =====================================================================
 
 const API_BASE = '/api/v1';
+const CLERK_PUBLISHABLE_KEY = 'pk_test_dm9jYWwtc2Vhc25haWwtNDU0My5jbGVyay5hY2NvdW50cy5kZXYk';
 
 // Chart instances
 let trendChartInstance = null;
@@ -18,6 +19,8 @@ let currentFilters = {
   startDate: '',
   endDate: ''
 };
+let currentUser = null;
+let clerkLoaded = false;
 
 const OFFLINE_QUEUE_KEY = 'agrisensa_offline_harvest_queue';
 
@@ -39,7 +42,154 @@ document.addEventListener('DOMContentLoaded', () => {
   updateOfflineBanner();
   fetchDashboardData();
   setupLiveCalculator();
+  initClerkAuth();
 });
+
+// =====================================================================
+// CLERK AUTHENTICATION (EMAIL LOGIN)
+// =====================================================================
+
+async function initClerkAuth() {
+  const clerkSignInBtn = document.getElementById('clerkSignInBtn');
+  const bypassOfflineBtn = document.getElementById('bypassOfflineModeBtn');
+  
+  if (bypassOfflineBtn) {
+    bypassOfflineBtn.addEventListener('click', () => {
+      document.getElementById('clerkAuthModal').style.display = 'none';
+      showToast('⚡ Masuk dalam Mode Lapangan (Offline)', 'warning');
+    });
+  }
+
+  if (clerkSignInBtn) {
+    clerkSignInBtn.addEventListener('click', () => {
+      openClerkModal();
+    });
+  }
+
+  // Poll for Clerk global object if loaded via CDN
+  const checkClerkInterval = setInterval(async () => {
+    if (window.Clerk) {
+      clearInterval(checkClerkInterval);
+      try {
+        await window.Clerk.load({
+          appearance: {
+            variables: {
+              colorPrimary: '#10b981',
+              colorBackground: '#0b0f19',
+              colorText: '#f8fafc',
+              colorTextSecondary: '#94a3b8',
+              borderRadius: '0.75rem',
+            },
+            elements: {
+              card: 'border border-slate-800/80 shadow-2xl backdrop-blur-xl bg-[#090e1a]/95 text-slate-100',
+              formFieldInput: 'bg-[#070b14] border-slate-800 text-slate-100 focus:border-emerald-500',
+              formButtonPrimary: 'bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-bold',
+              headerTitle: 'text-slate-100 font-bold',
+              headerSubtitle: 'text-slate-400',
+              socialButtonsBlockButton: 'bg-slate-900 border-slate-800 text-slate-200 hover:bg-slate-800',
+              footerActionLink: 'text-emerald-400 hover:text-emerald-300'
+            }
+          }
+        });
+        clerkLoaded = true;
+        handleClerkAuthState();
+
+        // Listen for session/user updates
+        window.Clerk.addListener(() => {
+          handleClerkAuthState();
+        });
+      } catch (err) {
+        console.warn('Clerk initialization notice:', err);
+        showFallbackAuth();
+      }
+    }
+  }, 100);
+
+  // Safety timeout: if Clerk CDN not reached within 4 seconds (e.g. offline field)
+  setTimeout(() => {
+    if (!clerkLoaded && !window.Clerk) {
+      clearInterval(checkClerkInterval);
+      showFallbackAuth();
+    }
+  }, 4000);
+}
+
+function handleClerkAuthState() {
+  if (!window.Clerk) return;
+
+  const authModal = document.getElementById('clerkAuthModal');
+  const userPill = document.getElementById('clerkUserPill');
+  const signInBtn = document.getElementById('clerkSignInBtn');
+  const userEmailSpan = document.getElementById('clerkUserEmail');
+  const userBtnContainer = document.getElementById('clerkUserButton');
+  const signInContainer = document.getElementById('clerkSignInContainer');
+
+  if (window.Clerk.user) {
+    currentUser = window.Clerk.user;
+    const email = currentUser.primaryEmailAddress ? currentUser.primaryEmailAddress.emailAddress : (currentUser.username || 'Pengguna');
+    
+    if (userEmailSpan) userEmailSpan.textContent = email;
+    if (userPill) userPill.style.display = 'flex';
+    if (signInBtn) signInBtn.style.display = 'none';
+    if (authModal) authModal.style.display = 'none';
+
+    // Mount Clerk user profile button
+    if (userBtnContainer) {
+      userBtnContainer.innerHTML = '';
+      window.Clerk.mountUserButton(userBtnContainer);
+    }
+  } else {
+    currentUser = null;
+    if (userPill) userPill.style.display = 'none';
+    if (signInBtn) signInBtn.style.display = 'inline-flex';
+    
+    // Mount Sign In widget inside auth modal
+    if (signInContainer && window.Clerk.mountSignIn) {
+      signInContainer.innerHTML = '';
+      window.Clerk.mountSignIn(signInContainer, {
+        routing: 'hash',
+        appearance: {
+          variables: {
+            colorPrimary: '#10b981',
+            colorBackground: '#0b0f19',
+            colorText: '#f8fafc',
+          }
+        }
+      });
+    }
+    if (authModal) authModal.style.display = 'flex';
+  }
+}
+
+function openClerkModal() {
+  const authModal = document.getElementById('clerkAuthModal');
+  if (authModal) authModal.style.display = 'flex';
+  if (window.Clerk && !window.Clerk.user) {
+    const signInContainer = document.getElementById('clerkSignInContainer');
+    if (signInContainer && window.Clerk.mountSignIn) {
+      signInContainer.innerHTML = '';
+      window.Clerk.mountSignIn(signInContainer, { routing: 'hash' });
+    }
+  }
+}
+
+function showFallbackAuth() {
+  const placeholder = document.getElementById('clerkLoadingPlaceholder');
+  if (placeholder) {
+    placeholder.innerHTML = `
+      <div style="padding: 16px; text-align: center;">
+        <p style="font-size: 13px; color: #fbbf24; margin-bottom: 12px;">📡 Mode Offline Lapangan Siap</p>
+        <button id="offlineDirectBtn" class="btn btn-primary btn-sm" style="font-size: 12px;">Masuk Mode Mandor Kebun (Bypass)</button>
+      </div>
+    `;
+    const btn = document.getElementById('offlineDirectBtn');
+    if (btn) {
+      btn.addEventListener('click', () => {
+        document.getElementById('clerkAuthModal').style.display = 'none';
+      });
+    }
+  }
+}
 
 function initEventListeners() {
   // Modal buttons

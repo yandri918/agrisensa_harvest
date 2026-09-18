@@ -10,10 +10,18 @@
   <!-- Google Fonts: Plus Jakarta Sans for ultra-clean readability -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/style.css?v=3.3">
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/style.css?v=3.4">
   <!-- Chart.js for High Performance Visualizations -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <!-- Clerk Authentication SDK (Email-only Support) -->
+  <script
+    async
+    crossorigin="anonymous"
+    data-clerk-publishable-key="pk_test_dm9jYWwtc2Vhc25haWwtNDU0My5jbGVyay5hY2NvdW50cy5kZXYk"
+    src="https://vocal-seasnail-4543.clerk.accounts.dev/npm/@clerk/clerk-js@latest/dist/clerk.browser.js"
+    type="text/javascript"
+  ></script>
 </head>
 <body>
 
@@ -48,6 +56,20 @@
         <button id="openIngestModalBtn" class="btn btn-primary btn-header btn-highlight">
           ➕ Input Data Panen
         </button>
+
+        <!-- Clerk Authentication & User Profile Section -->
+        <div id="authSection" class="auth-section">
+          <div id="clerkUserPill" class="user-pill" style="display: none;">
+            <div id="clerkUserButton"></div>
+            <div class="user-meta">
+              <span id="clerkUserEmail" class="user-email">email@agrisensa.com</span>
+              <span class="user-role-badge">Agronomist</span>
+            </div>
+          </div>
+          <button id="clerkSignInBtn" class="btn btn-primary btn-header btn-sm" style="display: none; font-size: 12px;">
+            🔐 Masuk
+          </button>
+        </div>
       </div>
     </header>
 
@@ -547,9 +569,41 @@
     </div>
   </div>
 
+  <!-- CLERK AUTH OVERLAY FOR EMAIL LOGIN -->
+  <div id="clerkAuthModal" class="modal-backdrop" style="display: none; z-index: 9999; backdrop-filter: blur(20px); background: rgba(5, 8, 16, 0.88);">
+    <div class="modal-card clerk-modal-card" style="max-width: 480px; width: 95%; text-align: center; border: 1px solid rgba(16, 185, 129, 0.3); box-shadow: 0 25px 60px -12px rgba(0,0,0,0.8), 0 0 35px rgba(16, 185, 129, 0.15); padding: 28px 24px;">
+      <div style="margin-bottom: 20px;">
+        <div style="font-size: 40px; margin-bottom: 6px;">🌾</div>
+        <h2 style="font-family: 'Outfit', sans-serif; font-size: 22px; font-weight: 800; color: #f8fafc; margin-bottom: 6px; letter-spacing: -0.02em;">
+          AgriSensa Harvest Intelligence
+        </h2>
+        <p style="font-size: 13px; color: #94a3b8; line-height: 1.5;">
+          Masuk dengan <strong>Email</strong> Anda untuk membuka akses dasbor analitik & pencatatan panen.
+        </p>
+      </div>
+
+      <!-- Clerk Mount Container -->
+      <div id="clerkSignInContainer" style="display: flex; justify-content: center; min-height: 260px; align-items: center;">
+        <div class="auth-loading-spinner" id="clerkLoadingPlaceholder" style="display: flex; flex-direction: column; align-items: center; gap: 10px;">
+          <span class="pulse-dot" style="background: var(--emerald-400); width: 14px; height: 14px;"></span>
+          <span style="font-size: 13px; color: var(--text-secondary);">Menghubungkan ke Clerk Auth Engine...</span>
+        </div>
+      </div>
+
+      <div style="margin-top: 18px; border-top: 1px solid var(--border-glass); padding-top: 14px; display: flex; justify-content: space-between; align-items: center;">
+        <span style="font-size: 11px; color: var(--text-muted); display: flex; align-items: center; gap: 4px;">
+          🔒 Dilindungi Clerk Auth • Enkripsi TLS
+        </span>
+        <button id="bypassOfflineModeBtn" type="button" class="btn btn-secondary btn-sm" style="font-size: 11px; padding: 4px 10px;" title="Gunakan mode offline tanpa login jika berada di kebun/lapangan tanpa sinyal">
+          ⚡ Mode Offline
+        </button>
+      </div>
+    </div>
+  </div>
+
   <!-- TOAST CONTAINER -->
   <div class="toast-container" id="toastContainer"></div>
 
-  <script src="/app.js?v=3.3"></script>
+  <script src="/app.js?v=3.4"></script>
 </body>
 </html>

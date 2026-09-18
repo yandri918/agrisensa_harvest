@@ -987,3 +987,103 @@ input:focus, select:focus, textarea:focus {
   from { opacity: 0; transform: translateY(12px); }
   to { opacity: 1; transform: translateY(0); }
 }
+
+/* =====================================================================
+   CLERK AUTHENTICATION UI STYLES
+   ===================================================================== */
+.auth-section {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.user-pill {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: rgba(17, 24, 39, 0.7);
+  border: 1px solid rgba(16, 185, 129, 0.25);
+  border-radius: 9999px;
+  padding: 4px 12px 4px 6px;
+  transition: var(--transition-smooth);
+}
+
+.user-pill:hover {
+  border-color: rgba(16, 185, 129, 0.5);
+  box-shadow: 0 0 12px rgba(16, 185, 129, 0.15);
+}
+
+.user-meta {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.15;
+}
+
+.user-email {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #f1f5f9;
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.user-role-badge {
+  font-size: 9.5px;
+  font-weight: 700;
+  color: var(--emerald-400);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.clerk-modal-card {
+  animation: modalScaleIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Clerk Widget Custom Theme Overrides */
+.cl-rootBox {
+  width: 100% !important;
+  max-width: 420px !important;
+}
+
+.cl-card {
+  background-color: transparent !important;
+  box-shadow: none !important;
+  border: none !important;
+}
+
+.cl-headerTitle {
+  color: #f8fafc !important;
+  font-family: 'Outfit', sans-serif !important;
+}
+
+.cl-headerSubtitle, .cl-dividerText {
+  color: #94a3b8 !important;
+}
+
+.cl-formButtonPrimary {
+  background-color: #10b981 !important;
+  color: #022c22 !important;
+  font-weight: 700 !important;
+  border-radius: 10px !important;
+}
+
+.cl-formButtonPrimary:hover {
+  background-color: #059669 !important;
+}
+
+.cl-formFieldInput {
+  background-color: #0b0f19 !important;
+  border-color: rgba(255, 255, 255, 0.1) !important;
+  color: #f8fafc !important;
+  border-radius: 8px !important;
+}
+
+.cl-formFieldInput:focus {
+  border-color: #10b981 !important;
+}
+
+.cl-userButtonTrigger {
+  border-radius: 50% !important;
+}
