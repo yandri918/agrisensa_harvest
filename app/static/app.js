@@ -221,14 +221,19 @@ async function fetchDashboardData(filterParams = {}) {
     // 3. Fetch AI Benchmark & Recommendations
     await fetchAIInsights(filterParams);
 
-    // Update status badge
-    document.getElementById('apiStatusBadge').style.borderColor = 'rgba(16, 185, 129, 0.4)';
-    document.getElementById('apiStatusText').textContent = 'API Live (Connected)';
+    // Update status badge safely
+    const statusPill = document.getElementById('systemStatusPill');
+    const statusText = document.getElementById('apiStatusText');
+    const pulseDot = document.getElementById('networkPulseDot');
+    if (statusPill) statusPill.style.borderColor = 'rgba(16, 185, 129, 0.4)';
+    if (statusText) statusText.textContent = 'Online & Terhubung';
+    if (pulseDot) pulseDot.style.backgroundColor = '#34d399';
 
   } catch (error) {
     console.error('Error fetching dashboard data:', error);
     showToast('Gagal memuat data dari API. Memeriksa koneksi...', 'error');
-    document.getElementById('apiStatusText').textContent = 'API Offline';
+    const statusText = document.getElementById('apiStatusText');
+    if (statusText) statusText.textContent = 'API Offline';
   }
 }
 
