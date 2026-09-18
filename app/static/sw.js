@@ -1,12 +1,10 @@
-const CACHE_NAME = 'agrisensa-harvest-cache-v1';
+const CACHE_NAME = 'agrisensa-harvest-cache-v2';
 const STATIC_ASSETS = [
   '/',
-  '/static/index.html',
-  '/static/style.css',
-  '/static/app.js',
-  '/static/manifest.json',
-  'https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap',
-  'https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js'
+  '/style.css',
+  '/app.js',
+  '/manifest.json',
+  'https://cdn.jsdelivr.net/npm/chart.js'
 ];
 
 // Install Event: Cache Core Static Shell
