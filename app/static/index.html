@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AgriSensa Harvest Intelligence — Executive Dashboard</title>
+  <link rel="stylesheet" href="/style.css">
+  <!-- Chart.js for High Performance Visualizations -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+
+  <div class="app-container">
+    
+    <!-- HEADER BAR -->
+    <header class="header-bar glass-panel">
+      <div class="brand-section">
+        <div class="brand-logo">🌾</div>
+        <div class="brand-title">
+          <h1>AgriSensa Harvest Intelligence</h1>
+          <p>From Field Data to Actionable Agricultural Intelligence & Reporting</p>
+        </div>
+      </div>
+
+      <div class="header-actions">
+        <div class="status-badge" id="apiStatusBadge">
+          <span class="pulse-dot"></span>
+          <span id="apiStatusText">API Live (Connected)</span>
+        </div>
+        <a href="/docs" target="_blank" class="btn btn-secondary btn-sm">
+          📚 Swagger API Docs
+        </a>
+        <button id="openIngestModalBtn" class="btn btn-primary">
+          ➕ Input Data Panen
+        </button>
+      </div>
+    </header>
+
+    <!-- EXECUTIVE KPI SUMMARY CARDS -->
+    <section class="kpi-grid">
+      
+      <div class="kpi-card glass-panel">
+        <div class="kpi-header">
+          <span class="kpi-title">TOTAL PANEN TERCATAT</span>
+          <div class="kpi-icon">📦</div>
+        </div>
+        <div class="kpi-value" id="kpiTotalHarvest">-</div>
+        <div class="kpi-footer">
+          <span class="trend-up">↑ Tervalidasi</span> dari seluruh kebun
+        </div>
+      </div>
+
+      <div class="kpi-card glass-panel">
+        <div class="kpi-header">
+          <span class="kpi-title">PRODUKTIVITAS RATA-RATA</span>
+          <div class="kpi-icon">⚡</div>
+        </div>
+        <div class="kpi-value" id="kpiAvgProductivity">-</div>
+        <div class="kpi-footer">
+          <span class="trend-up" id="kpiProductivitySub">kg / hektare</span>
+        </div>
+      </div>
+
+      <div class="kpi-card glass-panel">
+        <div class="kpi-header">
+          <span class="kpi-title">TOTAL PENDAPATAN KOTOR</span>
+          <div class="kpi-icon">💰</div>
+        </div>
+        <div class="kpi-value" id="kpiTotalRevenue">-</div>
+        <div class="kpi-footer">
+          <span>Estimasi penerimaan panen</span>
+        </div>
+      </div>
+
+      <div class="kpi-card glass-panel">
+        <div class="kpi-header">
+          <span class="kpi-title">KEUNTUNGAN BERSIH</span>
+          <div class="kpi-icon">📈</div>
+        </div>
+        <div class="kpi-value" id="kpiNetProfit">-</div>
+        <div class="kpi-footer">
+          <span class="trend-up" id="kpiAvgRoi">ROI: - %</span>
+        </div>
+      </div>
+
+      <div class="kpi-card glass-panel">
+        <div class="kpi-header">
+          <span class="kpi-title">MARKETABLE YIELD (MUTU)</span>
+          <div class="kpi-icon">🎯</div>
+        </div>
+        <div class="kpi-value" id="kpiMarketableYield">-</div>
+        <div class="kpi-footer">
+          <span id="kpiLossRate">Loss Rate: - %</span>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- PRIMARY CHARTS GRID -->
+    <section class="charts-grid">
+      
+      <!-- Trend Panen Chart -->
+      <div class="chart-card glass-panel">
+        <div class="card-header">
+          <h2>📊 Tren Hasil Panen & Produktivitas</h2>
+          <span class="badge badge-validated">Data Historis</span>
+        </div>
+        <div class="chart-wrapper">
+          <canvas id="harvestTrendChart"></canvas>
+        </div>
+      </div>
+
+      <!-- Mutu & Grade Doughnut Chart -->
+      <div class="chart-card glass-panel">
+        <div class="card-header">
+          <h2>🎯 Distribusi Mutu / Grade</h2>
+          <span class="badge badge-approved">Kualitas</span>
+        </div>
+        <div class="chart-wrapper">
+          <canvas id="qualityGradeChart"></canvas>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- SECONDARY CHARTS (FINANCIAL BREAKDOWN) -->
+    <section class="secondary-charts-grid">
+      
+      <div class="chart-card glass-panel">
+        <div class="card-header">
+          <h2>💵 Finansial: Biaya vs Pendapatan vs Keuntungan</h2>
+        </div>
+        <div class="chart-wrapper">
+          <canvas id="financialChart"></canvas>
+        </div>
+      </div>
+
+      <div class="chart-card glass-panel">
+        <div class="card-header">
+          <h2>🌱 Produktivitas per Komoditas (kg/ha)</h2>
+        </div>
+        <div class="chart-wrapper">
+          <canvas id="commodityChart"></canvas>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- DATA TABLE SECTION -->
+    <section class="table-card glass-panel">
+      <div class="table-toolbar">
+        <div style="display: flex; align-items: center; gap: 12px;">
+          <h2>📋 Riwayat Pencatatan Panen</h2>
+          <span class="badge badge-validated" id="recordCountBadge">0 Data</span>
+        </div>
+        <div style="display: flex; gap: 12px;">
+          <input type="text" id="searchInput" class="search-input" placeholder="🔍 Cari komoditas, kebun, petani...">
+          <button id="refreshDataBtn" class="btn btn-secondary btn-sm">🔄 Refresh Data</button>
+        </div>
+      </div>
+
+      <div class="table-responsive">
+        <table>
+          <thead>
+            <tr>
+              <th>ID Panen</th>
+              <th>Komoditas & Varietas</th>
+              <th>Kebun & Petani</th>
+              <th>Tgl Panen</th>
+              <th>Luas (ha)</th>
+              <th>Hasil (kg)</th>
+              <th>Laba Bersih (IDR)</th>
+              <th>ROI (%)</th>
+              <th>Status</th>
+              <th>Aksi</th>
+            </tr>
+          </thead>
+          <tbody id="harvestTableBody">
+            <tr>
+              <td colspan="10" style="text-align: center; color: var(--text-muted); padding: 32px;">
+                Memuat data panen dari API...
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+  </div>
+
+  <!-- MODAL INGEST FORM (DATA INGEST & LIVE CALCULATOR) -->
+  <div class="modal-overlay" id="ingestModal">
+    <div class="modal-container">
+      
+      <!-- Form Side -->
+      <div class="modal-form-side">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+          <h2>🌾 Input Data Panen Baru</h2>
+          <button id="closeModalBtn" style="background: none; border: none; color: var(--text-muted); font-size: 20px; cursor: pointer;">✕</button>
+        </div>
+
+        <!-- 1-Click Preset Buttons -->
+        <div style="margin-bottom: 16px;">
+          <span style="font-size: 11px; color: var(--text-secondary); display: block; margin-bottom: 6px;">⚡ PRESET DEMO CEPAT:</span>
+          <div class="preset-pills">
+            <button type="button" class="pill-btn" onclick="loadPreset('cabai')">🌶️ Cabai Merah Lado F1</button>
+            <button type="button" class="pill-btn" onclick="loadPreset('padi')">🌾 Padi Inpari 32</button>
+            <button type="button" class="pill-btn" onclick="loadPreset('jagung')">🌽 Jagung NK212</button>
+          </div>
+        </div>
+
+        <form id="harvestForm">
+          
+          <div class="form-row">
+            <div class="form-group">
+              <label>ID Kebun</label>
+              <input type="text" id="farm_id" required value="FARM-001">
+            </div>
+            <div class="form-group">
+              <label>ID / Nama Petani</label>
+              <input type="text" id="farmer_id" required value="USR-028">
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label>Komoditas</label>
+              <input type="text" id="commodity" required value="Cabai Merah">
+            </div>
+            <div class="form-group">
+              <label>Varietas Tanaman</label>
+              <input type="text" id="variety" value="Lado F1">
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label>Tanggal Tanam</label>
+              <input type="date" id="planting_date" required value="2026-05-10">
+            </div>
+            <div class="form-group">
+              <label>Tanggal Panen</label>
+              <input type="date" id="harvest_date" required value="2026-09-17">
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label>Luas Lahan</label>
+              <input type="number" step="any" id="land_area" required value="0.5">
+            </div>
+            <div class="form-group">
+              <label>Satuan Luas</label>
+              <select id="land_area_unit">
+                <option value="ha" selected>Hektare (ha)</option>
+                <option value="m2">Meter Persegi (m²)</option>
+                <option value="bata">Bata / Ru (14 m²)</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label>Total Kuantitas Panen</label>
+              <input type="number" step="any" id="harvest_quantity" required value="3250">
+            </div>
+            <div class="form-group">
+              <label>Satuan Panen</label>
+              <select id="quantity_unit">
+                <option value="kg" selected>Kilogram (kg)</option>
+                <option value="ton">Ton</option>
+                <option value="kuintal">Kuintal (kw)</option>
+                <option value="peti">Peti (30 kg)</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label>Hasil Layak Jual (kg)</label>
+              <input type="number" step="any" id="marketable_quantity" value="2980">
+            </div>
+            <div class="form-group">
+              <label>Hasil Rusak / Afkir (kg)</label>
+              <input type="number" step="any" id="damaged_quantity" value="270">
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label>Harga Jual (IDR / unit)</label>
+              <input type="number" step="any" id="selling_price_per_unit" value="42000">
+            </div>
+            <div class="form-group">
+              <label>Total Biaya Produksi (IDR)</label>
+              <input type="number" step="any" id="production_cost" value="68500000">
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label>Kanal Penjualan / Pembeli</label>
+            <input type="text" id="sales_channel" value="pasar_induk" placeholder="contoh: Pasar Induk, Supermarket, Tengkulak">
+          </div>
+
+          <div class="form-group">
+            <label>Catatan Lapangan & Gejala Hama</label>
+            <textarea id="notes" rows="2" placeholder="Kondisi cuaca, mutu buah dominan, serangan hama...">Panen ketiga dengan mutu dominan grade A</textarea>
+          </div>
+
+          <div style="display: flex; gap: 12px; margin-top: 24px;">
+            <button type="submit" class="btn btn-primary" style="flex: 1;">💾 Simpan & Ingest Panen</button>
+            <button type="button" class="btn btn-secondary" onclick="closeModal()">Batal</button>
+          </div>
+
+        </form>
+      </div>
+
+      <!-- Live Preview & Instant KPI Calculator Side -->
+      <div class="modal-preview-side">
+        <h3 style="font-size: 16px; margin-bottom: 8px; color: var(--emerald-400);">⚡ Realtime KPI Calculator</h3>
+        <p style="font-size: 12px; color: var(--text-secondary); margin-bottom: 24px;">
+          Kalkulasi analitik otomatis saat Anda memasukkan data:
+        </p>
+
+        <div style="display: flex; flex-direction: column; gap: 16px; flex: 1;">
+          
+          <div class="glass-panel" style="padding: 14px;">
+            <span style="font-size: 11px; color: var(--text-muted);">ESTIMASI PRODUKTIVITAS</span>
+            <div style="font-size: 20px; font-weight: 700; color: var(--text-primary);" id="liveCalcProductivity">6,500.00 kg/ha</div>
+          </div>
+
+          <div class="glass-panel" style="padding: 14px;">
+            <span style="font-size: 11px; color: var(--text-muted);">ESTIMASI OMSET KOTOR</span>
+            <div style="font-size: 20px; font-weight: 700; color: var(--emerald-400);" id="liveCalcRevenue">Rp 125,160,000</div>
+          </div>
+
+          <div class="glass-panel" style="padding: 14px;">
+            <span style="font-size: 11px; color: var(--text-muted);">ESTIMASI LABA BERSIH</span>
+            <div style="font-size: 20px; font-weight: 700; color: #38bdf8;" id="liveCalcProfit">Rp 56,660,000</div>
+          </div>
+
+          <div class="glass-panel" style="padding: 14px;">
+            <span style="font-size: 11px; color: var(--text-muted);">RETURN ON INVESTMENT (ROI)</span>
+            <div style="font-size: 20px; font-weight: 700; color: #a78bfa;" id="liveCalcRoi">82.72%</div>
+          </div>
+
+          <div class="glass-panel" style="padding: 14px;">
+            <span style="font-size: 11px; color: var(--text-muted);">HARGA IMPAS (BREAK-EVEN PRICE)</span>
+            <div style="font-size: 20px; font-weight: 700; color: #f59e0b;" id="liveCalcBep">Rp 22,986.58 / kg</div>
+          </div>
+
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- TOAST CONTAINER -->
+  <div class="toast-container" id="toastContainer"></div>
+
+  <script src="/app.js"></script>
+</body>
+</html>
