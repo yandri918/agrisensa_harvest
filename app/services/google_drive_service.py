@@ -156,33 +156,58 @@ class GoogleDriveService:
   <meta charset="UTF-8">
   <title>Laporan Hasil Panen - {record.commodity}</title>
   <style>
-    body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; margin: 40px; color: #1e293b; line-height: 1.6; background-color: #f8fafc; }}
-    .container {{ max-width: 800px; margin: 0 auto; background: #ffffff; padding: 40px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.06); border: 1px solid #e2e8f0; }}
-    .header {{ border-bottom: 2px solid #10b981; padding-bottom: 20px; margin-bottom: 28px; display: flex; justify-content: space-between; align-items: center; }}
-    .brand {{ font-size: 24px; font-weight: 800; color: #059669; }}
-    .meta {{ font-size: 13px; color: #64748b; text-align: right; }}
-    .kpi-grid {{ display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 28px; }}
-    .kpi-box {{ background: #f0fdf4; border: 1px solid #bbf7d0; padding: 16px; border-radius: 8px; text-align: center; }}
-    .kpi-val {{ font-size: 20px; font-weight: 700; color: #059669; }}
-    .kpi-lbl {{ font-size: 11px; color: #64748b; text-transform: uppercase; margin-top: 4px; }}
-    table {{ width: 100%; border-collapse: collapse; margin: 20px 0; font-size: 14px; }}
-    th, td {{ border: 1px solid #e2e8f0; padding: 10px 14px; text-align: left; }}
-    th {{ background: #f1f5f9; color: #475569; }}
-    .badge {{ display: inline-block; padding: 4px 10px; background: #dcfce7; color: #15803d; border-radius: 999px; font-weight: 600; font-size: 12px; }}
-    .footer {{ margin-top: 36px; padding-top: 20px; border-top: 1px solid #e2e8f0; font-size: 12px; color: #94a3b8; text-align: center; }}
+    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Outfit:wght@600;700;800&display=swap');
+    body {{ font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif; margin: 30px; color: #1e293b; line-height: 1.5; background-color: #f8fafc; }}
+    .container {{ max-width: 860px; margin: 0 auto; background: #ffffff; padding: 36px 42px; border-radius: 12px; box-shadow: 0 4px 25px rgba(0,0,0,0.08); border: 1px solid #e2e8f0; }}
+    
+    .kop-container {{ display: flex; justify-content: space-between; align-items: center; gap: 20px; padding-bottom: 14px; }}
+    .kop-brand-wrap {{ display: flex; align-items: center; gap: 16px; }}
+    .kop-logo-box {{ width: 56px; height: 56px; border-radius: 12px; background: linear-gradient(135deg, #059669, #0d9488); display: flex; align-items: center; justify-content: center; font-size: 28px; color: #ffffff; flex-shrink: 0; }}
+    .kop-brand-text h1 {{ font-family: 'Outfit', sans-serif; font-size: 19px; font-weight: 800; color: #065f46; letter-spacing: 0.02em; text-transform: uppercase; line-height: 1.2; margin: 0; }}
+    .kop-brand-text .kop-sub1 {{ font-size: 11px; font-weight: 700; color: #047857; text-transform: uppercase; letter-spacing: 0.04em; margin-top: 2px; }}
+    .kop-brand-text .kop-sub2 {{ font-size: 10.5px; color: #64748b; margin-top: 2px; }}
+    .kop-meta-box {{ text-align: right; font-size: 11px; color: #334155; border-left: 2px solid #e2e8f0; padding-left: 16px; flex-shrink: 0; }}
+    .kop-badge {{ display: inline-block; padding: 3px 9px; background: #ecfdf5; color: #047857; font-weight: 700; border-radius: 6px; font-size: 10.5px; text-transform: uppercase; border: 1px solid #a7f3d0; margin-bottom: 4px; }}
+    .kop-double-divider {{ border-top: 3px solid #047857; border-bottom: 1px solid #10b981; height: 3px; margin-bottom: 22px; }}
+
+    .doc-title-banner {{ text-align: center; margin-bottom: 20px; }}
+    .doc-title-banner h2 {{ font-family: 'Outfit', sans-serif; font-size: 15px; font-weight: 800; color: #0f172a; text-transform: uppercase; letter-spacing: 0.05em; }}
+    .doc-title-banner p {{ font-size: 11.5px; color: #64748b; margin-top: 2px; }}
+
+    .kpi-grid {{ display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 22px; }}
+    .kpi-box {{ background: #f0fdf4; border: 1px solid #bbf7d0; padding: 12px 14px; border-radius: 8px; text-align: center; }}
+    .kpi-val {{ font-size: 18px; font-weight: 700; color: #059669; }}
+    .kpi-lbl {{ font-size: 10px; color: #64748b; text-transform: uppercase; margin-top: 3px; font-weight: 700; }}
+
+    table {{ width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 12px; }}
+    th, td {{ border: 1px solid #e2e8f0; padding: 8px 12px; text-align: left; }}
+    th {{ background: #f1f5f9; color: #475569; font-weight: 600; }}
+    .footer {{ margin-top: 28px; padding-top: 14px; border-top: 1px solid #e2e8f0; font-size: 10.5px; color: #94a3b8; text-align: center; }}
   </style>
 </head>
 <body>
   <div class="container">
-    <div class="header">
-      <div>
-        <div class="brand">🌾 AgriSensa Harvest Intelligence</div>
-        <p style="margin: 4px 0 0; color: #64748b; font-size: 14px;">Laporan Resmi Rekapitulasi & Analisis Hasil Panen</p>
+    <div class="kop-container">
+      <div class="kop-brand-wrap">
+        <div class="kop-logo-box">🌾</div>
+        <div class="kop-brand-text">
+          <h1>AGRISENSA HARVEST INTELLIGENCE</h1>
+          <div class="kop-sub1">Sistem Cerdas Pencatatan & Analitik Rekapitulasi Panen</div>
+          <div class="kop-sub2">Dokumen Resmi Laporan Panen Terintegrasi Google Drive</div>
+        </div>
       </div>
-      <div class="meta">
-        <strong>Status: <span class="badge">{record.status.upper()}</span></strong><br>
-        Tgl Cetak: {datetime.now().strftime('%d %B %Y %H:%M')} WIB
+      <div class="kop-meta-box">
+        <div><span class="kop-badge">{record.status.upper()}</span></div>
+        <div><strong>No:</strong> <code>HARV-{record.harvest_id[:8].upper()}</code></div>
+        <div><strong>Tgl Cetak:</strong> {datetime.now().strftime('%d/%m/%Y %H:%M')} WIB</div>
       </div>
+    </div>
+
+    <div class="kop-double-divider"></div>
+
+    <div class="doc-title-banner">
+      <h2>LEMBAR LAPORAN REKAPITULASI & EVALUASI PANEN</h2>
+      <p>Komoditas: <strong>{record.commodity}</strong> (Varietas: {record.variety or 'Standar'}) &bull; Periode Panen: {record.harvest_date}</p>
     </div>
 
     <div class="kpi-grid">

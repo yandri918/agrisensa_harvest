@@ -39,154 +39,236 @@ class ReportService:
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Laporan Panen - {record.commodity} - {record.farm_id}</title>
   <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Outfit:wght@600;700;800&display=swap');
     
     * {{ box-sizing: border-box; margin: 0; padding: 0; }}
     body {{
-      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
       background-color: #0f172a;
       color: #1e293b;
       padding: 24px;
       line-height: 1.5;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
     }}
 
     /* Action bar at top (hidden on print) */
     .action-bar {{
-      max-width: 850px;
+      max-width: 880px;
       margin: 0 auto 20px auto;
       display: flex;
       justify-content: space-between;
       align-items: center;
       background: #1e293b;
-      padding: 14px 20px;
-      border-radius: 10px;
+      padding: 14px 22px;
+      border-radius: 12px;
       border: 1px solid #334155;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.3);
     }}
     .action-btn {{
-      background: #10b981;
+      background: linear-gradient(135deg, #10b981, #059669);
       color: #ffffff;
       border: none;
-      padding: 10px 20px;
-      font-weight: 600;
-      border-radius: 6px;
+      padding: 10px 22px;
+      font-weight: 700;
+      border-radius: 8px;
       cursor: pointer;
       display: inline-flex;
       align-items: center;
       gap: 8px;
-      font-size: 14px;
+      font-size: 13.5px;
       text-decoration: none;
-      transition: background 0.2s;
+      transition: all 0.2s;
+      box-shadow: 0 2px 10px rgba(16, 185, 129, 0.4);
     }}
-    .action-btn:hover {{ background: #059669; }}
+    .action-btn:hover {{
+      background: linear-gradient(135deg, #34d399, #10b981);
+      transform: translateY(-1px);
+    }}
     .action-btn-sec {{
       background: #334155;
       color: #f1f5f9;
       border: 1px solid #475569;
+      box-shadow: none;
     }}
     .action-btn-sec:hover {{ background: #475569; }}
 
     /* Document page */
     .document-page {{
-      max-width: 850px;
+      max-width: 880px;
       margin: 0 auto;
       background: #ffffff;
-      padding: 48px;
+      padding: 38px 46px;
       border-radius: 12px;
-      box-shadow: 0 10px 30px rgba(0,0,0,0.25);
+      box-shadow: 0 10px 35px rgba(0,0,0,0.3);
     }}
 
-    .header {{
+    /* =========================================================
+       KOP SURAT RESMI (OFFICIAL LETTERHEAD)
+       ========================================================= */
+    .kop-container {{
       display: flex;
       justify-content: space-between;
-      align-items: flex-start;
-      border-bottom: 2px solid #10b981;
-      padding-bottom: 24px;
-      margin-bottom: 28px;
+      align-items: center;
+      gap: 20px;
+      padding-bottom: 14px;
     }}
-    .brand-title {{
-      font-size: 24px;
+
+    .kop-brand-wrap {{
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }}
+
+    .kop-logo-box {{
+      width: 58px;
+      height: 58px;
+      border-radius: 12px;
+      background: linear-gradient(135deg, #059669, #0d9488);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 30px;
+      color: #ffffff;
+      flex-shrink: 0;
+      box-shadow: 0 4px 12px rgba(5, 150, 105, 0.3);
+    }}
+
+    .kop-brand-text h1 {{
+      font-family: 'Outfit', sans-serif;
+      font-size: 19px;
       font-weight: 800;
-      color: #047857;
-      letter-spacing: -0.5px;
-    }}
-    .brand-sub {{
-      font-size: 13px;
-      color: #64748b;
-      margin-top: 4px;
-    }}
-    .doc-meta {{
-      text-align: right;
-      font-size: 12px;
-      color: #475569;
-    }}
-    .badge {{
-      display: inline-block;
-      padding: 4px 12px;
-      background: #dcfce7;
-      color: #15803d;
-      font-weight: 700;
-      border-radius: 999px;
-      font-size: 12px;
+      color: #065f46;
+      letter-spacing: 0.02em;
       text-transform: uppercase;
-      margin-bottom: 6px;
+      line-height: 1.2;
+    }}
+
+    .kop-brand-text .kop-sub1 {{
+      font-size: 11px;
+      font-weight: 700;
+      color: #047857;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      margin-top: 2px;
+    }}
+
+    .kop-brand-text .kop-sub2 {{
+      font-size: 10.5px;
+      color: #64748b;
+      margin-top: 2px;
+      line-height: 1.35;
+    }}
+
+    .kop-meta-box {{
+      text-align: right;
+      font-size: 11px;
+      color: #334155;
+      border-left: 2px solid #e2e8f0;
+      padding-left: 16px;
+      flex-shrink: 0;
+      line-height: 1.5;
+    }}
+
+    .kop-badge {{
+      display: inline-block;
+      padding: 3px 9px;
+      background: #ecfdf5;
+      color: #047857;
+      font-weight: 700;
+      border-radius: 6px;
+      font-size: 10.5px;
+      text-transform: uppercase;
+      border: 1px solid #a7f3d0;
+      margin-bottom: 4px;
+    }}
+
+    /* Double line border for official letterhead */
+    .kop-double-divider {{
+      border-top: 3px solid #047857;
+      border-bottom: 1px solid #10b981;
+      height: 3px;
+      margin-bottom: 22px;
+    }}
+
+    /* Document Title Banner */
+    .doc-title-banner {{
+      text-align: center;
+      margin-bottom: 20px;
+    }}
+    .doc-title-banner h2 {{
+      font-family: 'Outfit', sans-serif;
+      font-size: 15px;
+      font-weight: 800;
+      color: #0f172a;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }}
+    .doc-title-banner p {{
+      font-size: 11.5px;
+      color: #64748b;
+      margin-top: 2px;
     }}
 
     /* KPI Highlights Grid */
     .kpi-grid {{
       display: grid;
       grid-template-columns: repeat(4, 1fr);
-      gap: 16px;
-      margin-bottom: 32px;
+      gap: 12px;
+      margin-bottom: 22px;
     }}
     .kpi-card {{
       background: #f8fafc;
       border: 1px solid #e2e8f0;
       border-radius: 8px;
-      padding: 16px;
+      padding: 12px 14px;
       text-align: center;
     }}
     .kpi-card.highlight {{
-      background: #ecfdf5;
-      border-color: #a7f3d0;
+      background: #f0fdf4;
+      border-color: #bbf7d0;
     }}
     .kpi-card.highlight .kpi-val {{
       color: #059669;
     }}
     .kpi-val {{
-      font-size: 20px;
+      font-size: 17px;
       font-weight: 800;
       color: #0f172a;
     }}
     .kpi-label {{
-      font-size: 11px;
-      font-weight: 600;
+      font-size: 10px;
+      font-weight: 700;
       color: #64748b;
       text-transform: uppercase;
-      letter-spacing: 0.5px;
-      margin-top: 4px;
+      letter-spacing: 0.04em;
+      margin-top: 3px;
     }}
 
     /* Section Headings */
     h3 {{
-      font-size: 14px;
+      font-size: 12.5px;
       font-weight: 700;
       color: #0f172a;
       text-transform: uppercase;
-      letter-spacing: 0.5px;
-      margin-bottom: 12px;
-      padding-bottom: 6px;
-      border-bottom: 1px solid #e2e8f0;
+      letter-spacing: 0.04em;
+      margin-bottom: 8px;
+      padding-bottom: 4px;
+      border-bottom: 1.5px solid #e2e8f0;
+      display: flex;
+      align-items: center;
+      gap: 6px;
     }}
 
     /* Tables */
     .data-table {{
       width: 100%;
       border-collapse: collapse;
-      margin-bottom: 28px;
-      font-size: 13px;
+      margin-bottom: 18px;
+      font-size: 11.5px;
     }}
     .data-table th, .data-table td {{
-      padding: 10px 14px;
+      padding: 7px 11px;
       border: 1px solid #e2e8f0;
       text-align: left;
     }}
@@ -196,23 +278,23 @@ class ReportService:
       font-weight: 600;
     }}
     .data-table td.money {{
-      font-family: monospace;
-      font-size: 13px;
+      font-family: 'Plus Jakarta Sans', monospace;
+      font-size: 11.5px;
     }}
 
     .summary-box {{
       background: #f8fafc;
       border: 1px solid #e2e8f0;
       border-radius: 8px;
-      padding: 18px;
-      margin-bottom: 28px;
+      padding: 14px 16px;
+      margin-bottom: 18px;
     }}
 
     .footer {{
-      margin-top: 40px;
-      padding-top: 20px;
+      margin-top: 24px;
+      padding-top: 12px;
       border-top: 1px solid #e2e8f0;
-      font-size: 11px;
+      font-size: 10px;
       color: #94a3b8;
       display: flex;
       justify-content: space-between;
@@ -222,20 +304,23 @@ class ReportService:
     /* Print Stylesheet (Clean A4 PDF formatting) */
     @media print {{
       body {{
-        background: #ffffff;
-        padding: 0;
+        background: #ffffff !important;
+        padding: 0 !important;
       }}
       .action-bar {{
         display: none !important;
       }}
       .document-page {{
-        box-shadow: none;
-        padding: 0;
-        max-width: 100%;
+        box-shadow: none !important;
+        padding: 0 !important;
+        max-width: 100% !important;
+      }}
+      .kpi-card, .data-table, .summary-box, .kop-container {{
+        page-break-inside: avoid;
       }}
       @page {{
         size: A4 portrait;
-        margin: 15mm;
+        margin: 10mm 14mm;
       }}
     }}
   </style>
@@ -245,7 +330,7 @@ class ReportService:
   <!-- Top Action Bar -->
   <div class="action-bar">
     <div style="color: #94a3b8; font-size: 13px;">
-      📄 <strong>Laporan Resmi Hasil Panen</strong> — Siap Cetak / Simpan sebagai PDF
+      📄 <strong>Laporan Resmi Rekapitulasi Panen</strong> — Siap Cetak / Simpan sebagai PDF Resmi
     </div>
     <div style="display: flex; gap: 10px;">
       <button class="action-btn" onclick="window.print()">
@@ -260,17 +345,35 @@ class ReportService:
   <!-- Document Page -->
   <div class="document-page">
     
-    <!-- Header -->
-    <div class="header">
-      <div>
-        <div class="brand-title">🌾 AGRISENSA HARVEST INTELLIGENCE</div>
-        <div class="brand-sub">Laporan Rekapitulasi & Analisis Kinerja Hasil Panen</div>
+    <!-- KOP SURAT RESMI AGRISENSA HARVEST INTELLIGENCE -->
+    <div class="kop-container">
+      <div class="kop-brand-wrap">
+        <div class="kop-logo-box">🌾</div>
+        <div class="kop-brand-text">
+          <h1>AGRISENSA HARVEST INTELLIGENCE</h1>
+          <div class="kop-sub1">Sistem Cerdas Pencatatan & Analitik Rekapitulasi Panen</div>
+          <div class="kop-sub2">
+            Standar Acuan Agribisnis Nasional (Kementerian Pertanian & BPS RI)<br>
+            Portal Digital: <em>agrisensa-harvest-api-production.up.railway.app</em>
+          </div>
+        </div>
       </div>
-      <div class="doc-meta">
-        <div class="badge">{record.status}</div>
-        <div>No. Dokumen: <code>HARV-{record.harvest_id[:8].upper()}</code></div>
-        <div>Tanggal Cetak: {datetime.now().strftime('%d/%m/%Y %H:%M')} WIB</div>
+
+      <div class="kop-meta-box">
+        <div><span class="kop-badge">{record.status.upper()}</span></div>
+        <div><strong>No:</strong> <code>HARV-{record.harvest_id[:8].upper()}</code></div>
+        <div><strong>Tgl Cetak:</strong> {datetime.now().strftime('%d/%m/%Y %H:%M')} WIB</div>
+        <div><strong>ID Kebun:</strong> {record.farm_id}</div>
       </div>
+    </div>
+
+    <!-- Double Border Divider -->
+    <div class="kop-double-divider"></div>
+
+    <!-- Judul Dokumen -->
+    <div class="doc-title-banner">
+      <h2>LEMBAR LAPORAN REKAPITULASI & EVALUASI PANEN</h2>
+      <p>Komoditas: <strong>{record.commodity}</strong> (Varietas: {record.variety or 'Standar'}) &bull; Periode Panen: {record.harvest_date}</p>
     </div>
 
     <!-- KPI Summary Grid -->
@@ -280,7 +383,7 @@ class ReportService:
         <div class="kpi-label">Total Hasil Panen</div>
       </div>
       <div class="kpi-card">
-        <div class="kpi-val">{productivity_val} <span style="font-size:12px; font-weight:normal;">kg/ha</span></div>
+        <div class="kpi-val">{productivity_val} <span style="font-size:11px; font-weight:normal;">kg/ha</span></div>
         <div class="kpi-label">Produktivitas</div>
       </div>
       <div class="kpi-card highlight">
@@ -360,7 +463,7 @@ class ReportService:
         </tr>
         <tr style="background: #ecfdf5;">
           <td><strong>Keuntungan Bersih (Net Profit)</strong></td>
-          <td class="money" style="color: #047857; font-size: 15px;"><strong>Rp {record.net_profit:,.0f}</strong></td>
+          <td class="money" style="color: #047857; font-size: 14px;"><strong>Rp {record.net_profit:,.0f}</strong></td>
           <td>BEP: {bep_val} / kg</td>
           <td>Margin laba bersih tercapai</td>
         </tr>
@@ -386,29 +489,29 @@ class ReportService:
 
     <!-- 4. Evaluasi Kinerja AI & Benchmark Nasional -->
     <h3>🤖 Evaluasi Cerdas AI & Benchmark Nasional (Kementan/BPS)</h3>
-    <div class="summary-box" style="background: #f0fdf4; border-color: #bbf7d0; margin-bottom: 24px;">
-      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+    <div class="summary-box" style="background: #f0fdf4; border-color: #bbf7d0; margin-bottom: 20px;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
         <div>
-          <span style="font-size: 14px; font-weight: 700; color: #166534;">Status Evaluasi: {ai_eval['status_label']}</span>
+          <span style="font-size: 13px; font-weight: 700; color: #166534;">Status Evaluasi: {ai_eval['status_label']}</span>
           <span style="margin-left: 8px;">{ai_eval['rating_stars']}</span>
         </div>
-        <div style="font-size: 12px; font-weight: 600; color: #15803d; background: #dcfce7; padding: 4px 10px; border-radius: 6px;">
+        <div style="font-size: 11px; font-weight: 700; color: #15803d; background: #dcfce7; padding: 3px 8px; border-radius: 6px;">
           Grade: {ai_eval['status_grade']}
         </div>
       </div>
 
-      <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 12px; font-size: 12px;">
-        <div style="background: #ffffff; padding: 8px 12px; border-radius: 6px; border: 1px solid #dcfce7;">
+      <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 10px; font-size: 11px;">
+        <div style="background: #ffffff; padding: 7px 10px; border-radius: 6px; border: 1px solid #dcfce7;">
           <span style="color: #64748b; display: block;">Standar Acuan:</span>
           <strong>{ai_eval['benchmark_productivity_kg_ha']:,.0f} kg/ha</strong>
         </div>
-        <div style="background: #ffffff; padding: 8px 12px; border-radius: 6px; border: 1px solid #dcfce7;">
+        <div style="background: #ffffff; padding: 7px 10px; border-radius: 6px; border: 1px solid #dcfce7;">
           <span style="color: #64748b; display: block;">Deviasi Produktivitas:</span>
           <strong style="color: {'#16a34a' if ai_eval['productivity_delta_percent'] >= 0 else '#dc2626'};">
             {'+' if ai_eval['productivity_delta_percent'] > 0 else ''}{ai_eval['productivity_delta_percent']:.1f}% vs Standar
           </strong>
         </div>
-        <div style="background: #ffffff; padding: 8px 12px; border-radius: 6px; border: 1px solid #dcfce7;">
+        <div style="background: #ffffff; padding: 7px 10px; border-radius: 6px; border: 1px solid #dcfce7;">
           <span style="color: #64748b; display: block;">Loss Rate (Toleransi {ai_eval['max_safe_loss_rate_percent']}%):</span>
           <strong style="color: {'#16a34a' if ai_eval['actual_loss_rate_percent'] <= ai_eval['max_safe_loss_rate_percent'] else '#dc2626'};">
             {ai_eval['actual_loss_rate_percent']:.1f}%
@@ -416,9 +519,9 @@ class ReportService:
         </div>
       </div>
 
-      <div style="border-top: 1px dashed #86efac; padding-top: 10px;">
-        <strong style="font-size: 12px; color: #166534; display: block; margin-bottom: 4px;">Rekomendasi Cerdas Agronomi & Pasca Panen:</strong>
-        <ul style="margin-left: 18px; font-size: 12px; color: #334155; line-height: 1.6;">
+      <div style="border-top: 1px dashed #86efac; padding-top: 8px;">
+        <strong style="font-size: 11px; color: #166534; display: block; margin-bottom: 4px;">Rekomendasi Cerdas Agronomi & Pasca Panen:</strong>
+        <ul style="margin-left: 18px; font-size: 11px; color: #334155; line-height: 1.5;">
           {''.join(f'<li>{rec}</li>' for rec in ai_eval['recommendations'])}
         </ul>
       </div>
@@ -427,10 +530,10 @@ class ReportService:
     <!-- Footer -->
     <div class="footer">
       <div>
-        ID Panen: <code>{record.harvest_id}</code> | Sistem AgriSensa AI Engine v1.0
+        ID Panen: <code>{record.harvest_id}</code> &bull; Sistem AgriSensa AI Engine v1.0
       </div>
       <div>
-        Dicetak secara otomatis dari <strong>AgriSensa Harvest Intelligence</strong>
+        Dicetak secara resmi dari <strong>AgriSensa Harvest Intelligence</strong>
       </div>
     </div>
 
