@@ -2,7 +2,7 @@ import csv
 import io
 from datetime import datetime
 from typing import Optional, List
-from fastapi import APIRouter, HTTPException, Query, status
+from fastapi import APIRouter, HTTPException, Query, status, BackgroundTasks
 from fastapi.responses import Response, HTMLResponse
 
 from app.schemas.common import ApiResponse, PaginatedResponse, HarvestStatusEnum
@@ -13,6 +13,7 @@ from app.schemas.harvest import (
 )
 from app.services.harvest_service import harvest_service
 from app.services.report_service import report_service
+from app.services.notification_service import notification_service
 
 router = APIRouter(prefix="/harvests", tags=["Harvest Ingest & Management"])
 
@@ -24,9 +25,14 @@ router = APIRouter(prefix="/harvests", tags=["Harvest Ingest & Management"])
     summary="Mencatat data hasil panen baru (Data Ingest)",
     description="Menerima, memvalidasi, menormalisasi unit, menghitung KPI otomatis, dan menyimpan data hasil panen."
 )
-def create_harvest_record(payload: HarvestCreateRequest):
+def create_harvest_record(payload: HarvestCreateRequest, background_tasks: BackgroundTasks):
     try:
         record, is_new = harvest_service.create_harvest(payload)
+        
+        # Trigger background webhook / WhatsApp notification if new record
+        if is_new:
+            background_tasks.add_task(notification_service.send_harvest_notification, record)
+
         msg = "Data panen berhasil disimpan dan tervalidasi." if is_new else "Data panen (idempotent duplicate) ditemukan."
         return ApiResponse(
             success=True,

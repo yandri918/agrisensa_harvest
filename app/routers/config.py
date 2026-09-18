@@ -206,3 +206,91 @@ def test_upload_to_drive():
             detail=f"Gagal mengunggah berkas uji coba: {str(e)}"
         )
 
+
+# =====================================================================
+# NOTIFICATION & WEBHOOK CONFIGURATION
+# =====================================================================
+
+from app.services.notification_service import notification_service
+
+
+class NotificationConfigRequest(BaseModel):
+    is_enabled: Optional[bool] = Field(True, description="Status aktifkan notifikasi")
+    webhook_url: Optional[str] = Field(None, description="URL Webhook (WhatsApp API / Telegram / Slack / Discord / n8n)")
+    telegram_bot_token: Optional[str] = Field(None, description="Bot Token Telegram")
+    telegram_chat_id: Optional[str] = Field(None, description="Chat ID Telegram")
+
+
+@router.get("/notifications", response_model=ApiResponse[dict])
+def get_notification_config():
+    """Mengambil konfigurasi notifikasi saat ini."""
+    masked_url = None
+    if notification_service.webhook_url:
+        u = notification_service.webhook_url
+        masked_url = u[:25] + "..." + u[-8:] if len(u) > 35 else u
+
+    return ApiResponse(
+        success=True,
+        message="Konfigurasi notifikasi berhasil diambil.",
+        data={
+            "is_enabled": notification_service.is_enabled,
+            "webhook_url": masked_url,
+            "raw_webhook_url": notification_service.webhook_url,
+            "has_telegram": bool(notification_service.telegram_token and notification_service.telegram_chat_id)
+        }
+    )
+
+
+@router.post("/notifications", response_model=ApiResponse[dict])
+def save_notification_config(payload: NotificationConfigRequest):
+    """Menyimpan konfigurasi URL Webhook / WhatsApp."""
+    if payload.is_enabled is not None:
+        notification_service.is_enabled = payload.is_enabled
+
+    if payload.webhook_url is not None:
+        notification_service.webhook_url = payload.webhook_url.strip()
+        settings.WEBHOOK_URL = payload.webhook_url.strip()
+
+    if payload.telegram_bot_token is not None:
+        notification_service.telegram_token = payload.telegram_bot_token.strip()
+        settings.TELEGRAM_BOT_TOKEN = payload.telegram_bot_token.strip()
+
+    if payload.telegram_chat_id is not None:
+        notification_service.telegram_chat_id = payload.telegram_chat_id.strip()
+        settings.TELEGRAM_CHAT_ID = payload.telegram_chat_id.strip()
+
+    return ApiResponse(
+        success=True,
+        message="Konfigurasi notifikasi WhatsApp / Webhook berhasil disimpan.",
+        data={
+            "is_enabled": notification_service.is_enabled,
+            "webhook_url": notification_service.webhook_url,
+            "status": "active" if notification_service.is_enabled else "disabled"
+        }
+    )
+
+
+class NotificationTestRequest(BaseModel):
+    webhook_url: Optional[str] = Field(None, description="URL Webhook pengujian (opsional)")
+    custom_message: Optional[str] = Field(None, description="Pesan khusus uji coba")
+
+
+@router.post("/notifications/test", response_model=ApiResponse[dict])
+def test_notification_webhook(payload: NotificationTestRequest):
+    """Mengirim pesan uji coba ke Webhook / WhatsApp."""
+    result = notification_service.send_test_message(
+        target_webhook=payload.webhook_url,
+        custom_message=payload.custom_message
+    )
+    if not result.get("success"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=result.get("message", "Gagal mengirim notifikasi uji coba.")
+        )
+    return ApiResponse(
+        success=True,
+        message=result.get("message", "Notifikasi uji coba berhasil dikirim!"),
+        data=result
+    )
+
+

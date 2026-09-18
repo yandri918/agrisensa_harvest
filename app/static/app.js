@@ -47,6 +47,17 @@ function initEventListeners() {
   document.getElementById('closeModalBtn').addEventListener('click', closeModal);
   document.getElementById('refreshDataBtn').addEventListener('click', () => fetchDashboardData(currentFilters));
 
+  // Webhook Notification Modal
+  const openWebhookBtn = document.getElementById('openWebhookModalBtn');
+  const closeWebhookBtn = document.getElementById('closeWebhookModalBtn');
+  const webhookForm = document.getElementById('webhookConfigForm');
+  const testWebhookBtn = document.getElementById('testWebhookBtn');
+
+  if (openWebhookBtn) openWebhookBtn.addEventListener('click', openWebhookModal);
+  if (closeWebhookBtn) closeWebhookBtn.addEventListener('click', closeWebhookModal);
+  if (webhookForm) webhookForm.addEventListener('submit', handleSaveWebhookConfig);
+  if (testWebhookBtn) testWebhookBtn.addEventListener('click', handleTestWebhook);
+
   // Sync button in offline banner
   const syncBtn = document.getElementById('syncNowBtn');
   if (syncBtn) {
@@ -913,6 +924,73 @@ function closeModal() {
   document.getElementById('ingestModal').classList.remove('active');
 }
 
+async function openWebhookModal() {
+  document.getElementById('webhookModal').classList.add('active');
+  try {
+    const res = await fetch(`${API_BASE}/config/notifications`);
+    const data = await res.json();
+    if (data.success && data.data) {
+      document.getElementById('webhookUrlInput').value = data.data.raw_webhook_url || '';
+      document.getElementById('webhookEnabledToggle').checked = data.data.is_enabled !== false;
+    }
+  } catch (err) {
+    console.error('Failed to load webhook config:', err);
+  }
+}
+
+function closeWebhookModal() {
+  document.getElementById('webhookModal').classList.remove('active');
+}
+
+async function handleSaveWebhookConfig(e) {
+  e.preventDefault();
+  const webhookUrl = document.getElementById('webhookUrlInput').value.trim();
+  const isEnabled = document.getElementById('webhookEnabledToggle').checked;
+
+  try {
+    const res = await fetch(`${API_BASE}/config/notifications`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ webhook_url: webhookUrl, is_enabled: isEnabled })
+    });
+    const data = await res.json();
+    if (res.ok && data.success) {
+      showToast('Konfigurasi notifikasi WhatsApp / Webhook berhasil disimpan!', 'success');
+      closeWebhookModal();
+    } else {
+      showToast(data.detail || 'Gagal menyimpan konfigurasi.', 'error');
+    }
+  } catch (err) {
+    showToast('Terjadi kesalahan saat menyimpan webhook.', 'error');
+  }
+}
+
+async function handleTestWebhook() {
+  const webhookUrl = document.getElementById('webhookUrlInput').value.trim();
+  if (!webhookUrl) {
+    showToast('Harap masukkan URL Webhook terlebih dahulu sebelum menguji.', 'error');
+    return;
+  }
+
+  showToast('⏳ Mengirim pesan uji coba ke webhook...', 'success');
+
+  try {
+    const res = await fetch(`${API_BASE}/config/notifications/test`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ webhook_url: webhookUrl })
+    });
+    const data = await res.json();
+    if (res.ok && data.success) {
+      showToast('✅ Pesan uji coba BERHASIL terkirim ke Webhook!', 'success');
+    } else {
+      showToast(data.detail || data.message || 'Uji coba gagal terkirim.', 'error');
+    }
+  } catch (err) {
+    showToast('Gagal mengirim uji coba webhook: ' + err.message, 'error');
+  }
+}
+
 function showToast(message, type = 'success') {
   const container = document.getElementById('toastContainer');
   const toast = document.createElement('div');
@@ -928,5 +1006,6 @@ function showToast(message, type = 'success') {
     setTimeout(() => toast.remove(), 300);
   }, 6000);
 }
+
 
 

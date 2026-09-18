@@ -25,6 +25,11 @@ class Settings(BaseSettings):
     GOOGLE_DRIVE_ROOT_FOLDER_ID: str = "" # ID folder root di Google Drive
     GOOGLE_DRIVE_FOLDER_NAME: str = "AgriSensa_Harvest_Reports"
     
+    # Notification & Webhook Integration (WhatsApp / Telegram / Slack / n8n)
+    NOTIFICATION_ENABLED: bool = True
+    WEBHOOK_URL: str = "" # WhatsApp gateway / Discord / Slack / n8n webhook
+    TELEGRAM_BOT_TOKEN: str = ""
+    TELEGRAM_CHAT_ID: str = ""
     N8N_WEBHOOK_HARVEST_CREATED: str = ""
     N8N_WEBHOOK_SECRET: str = ""
 

@@ -34,6 +34,9 @@
           <span class="pulse-dot"></span>
           <span id="apiStatusText">API Live</span>
         </div>
+        <button id="openWebhookModalBtn" class="btn btn-secondary">
+          🔔 Notifikasi WA / Webhook
+        </button>
         <button id="openIngestModalBtn" class="btn btn-primary">
           ➕ Input Data Panen
         </button>
@@ -482,6 +485,52 @@
         </div>
       </div>
 
+    </div>
+  </div>
+
+  <!-- WEBHOOK & WHATSAPP NOTIFICATION MODAL -->
+  <div class="modal-overlay" id="webhookModal">
+    <div class="modal-container" style="max-width: 620px; grid-template-columns: 1fr;">
+      <div class="modal-form-side" style="padding: 32px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+          <div>
+            <h2 style="font-size: 18px; color: #ffffff; font-weight: 700;">🔔 Konfigurasi Notifikasi WhatsApp & Webhook</h2>
+            <p style="font-size: 13px; color: var(--text-secondary); margin-top: 4px;">Kirimkan ringkasan panen & evaluasi AI otomatis saat panen dicatat.</p>
+          </div>
+          <button type="button" class="btn btn-secondary btn-sm" id="closeWebhookModalBtn" style="padding: 6px 12px;">✕</button>
+        </div>
+
+        <form id="webhookConfigForm">
+          <div class="form-group">
+            <label>URL Webhook (WhatsApp Gateway / Discord / Telegram / n8n)</label>
+            <input type="url" id="webhookUrlInput" placeholder="https://api.fonnte.com/send atau https://discord.com/api/webhooks/..." style="font-size: 13px;">
+            <span style="font-size: 11px; color: var(--text-muted); display: block; margin-top: 6px;">
+              Mendukung gateway WhatsApp (Fonnte, Wablas, Waha, UltraMsg), Discord, Telegram, Slack, atau n8n webhook.
+            </span>
+          </div>
+
+          <div class="form-group" style="margin-top: 16px;">
+            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+              <input type="checkbox" id="webhookEnabledToggle" checked style="width: auto;">
+              <span style="font-size: 13px; color: var(--text-primary);">Aktifkan Pengiriman Notifikasi Otomatis</span>
+            </label>
+          </div>
+
+          <div style="background: rgba(255, 255, 255, 0.02); border: 1px solid var(--border-glass); border-radius: var(--radius-sm); padding: 14px; margin-top: 18px;">
+            <strong style="font-size: 12px; color: var(--emerald-400); display: block; margin-bottom: 6px;">Contoh Format Pesan Otomatis:</strong>
+            <pre style="font-size: 11px; color: #94a3b8; white-space: pre-wrap; font-family: monospace; line-height: 1.4;">🌾 AGRISENSA HARVEST INTELLIGENCE
+🌱 Cabai Merah (Lado F1) | Kebun: FARM-001
+⚖️ Hasil: 3.250 kg | Omset: Rp 125.160.000
+⚡ Produktivitas: 6.500 kg/ha (+8.3% vs Standar)
+🎯 AI Grade: ⭐⭐⭐⭐ OPTIMAL</pre>
+          </div>
+
+          <div style="display: flex; gap: 12px; margin-top: 24px;">
+            <button type="submit" class="btn btn-primary" style="flex: 1;">💾 Simpan Konfigurasi</button>
+            <button type="button" class="btn btn-secondary" id="testWebhookBtn">🧪 Kirim Uji Coba</button>
+          </div>
+        </form>
+      </div>
     </div>
   </div>
 
