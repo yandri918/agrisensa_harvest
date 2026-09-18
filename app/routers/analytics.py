@@ -147,28 +147,7 @@ def get_summary_ai_insights(
             data={"insights": ["Belum ada data panen yang tercatat."]}
         )
 
-    # Calculate summary
-    total_kg = sum(r.harvest_quantity_kg for r in records)
-    total_area = sum(r.land_area_ha for r in records)
-    avg_prod = (total_kg / total_area) if total_area > 0 else 0
-
-    valid_kpis = [r.kpi_summary for r in records if r.kpi_summary]
-    avg_marketable = (
-        sum(k.production_kpis.marketable_yield_percent for k in valid_kpis) / len(valid_kpis)
-        if valid_kpis else 0
-    )
-    avg_roi = (
-        sum(k.economic_kpis.roi_percent for k in valid_kpis) / len(valid_kpis)
-        if valid_kpis else 0
-    )
-
-    summary_dict = {
-        "avg_productivity_kg_per_ha": avg_prod,
-        "avg_marketable_yield_percent": avg_marketable,
-        "avg_roi_percent": avg_roi
-    }
-
-    insights_data = ai_insight_service.evaluate_summary_data(summary_dict, commodity)
+    insights_data = ai_insight_service.evaluate_records_collection(records, commodity)
     return ApiResponse(
         success=True,
         message="Evaluasi AI agregat berhasil dihitung.",
