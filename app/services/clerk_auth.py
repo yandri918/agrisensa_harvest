@@ -128,12 +128,13 @@ class ClerkAuthService:
 
                 user_img = clerk_profile.get("image_url")
 
-        # 4. Fallback Default untuk Offline / Guest / Local Dev
+        # 4. Strict Authentication Enforcement: jika tidak ada token/user ID, tolak request
         if not user_id:
-            user_id = "USR-028"
-            user_email = "mandor@agrisensa.ai"
-            user_name = "Mandor Kebun Banyumas"
-            is_verified = False
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Autentikasi diperlukan. Silakan masuk dengan akun Clerk Anda.",
+                headers={"WWW-Authenticate": "Bearer"}
+            )
 
         auth_user = AuthUser(
             user_id=user_id,
@@ -141,7 +142,7 @@ class ClerkAuthService:
             full_name=user_name,
             image_url=user_img,
             role="farmer",
-            is_authenticated=is_verified
+            is_authenticated=True
         )
 
         # 5. Sinkronkan & Pastikan Data Pengguna di Database (Auto-Provisioning)
@@ -157,13 +158,15 @@ clerk_auth_service = ClerkAuthService()
 
 
 async def get_current_user(request: Request) -> AuthUser:
-    """Dependency FastAPI untuk mengidentifikasi akun pengguna yang sedang aktif."""
+    """Dependency FastAPI untuk mengidentifikasi akun pengguna yang sedang aktif (Strict Authentication)."""
     return await clerk_auth_service.authenticate_request(request)
 
 
 async def get_optional_user(request: Request) -> Optional[AuthUser]:
-    """Dependency FastAPI opsional."""
+    """Dependency FastAPI opsional (mengembalikan None jika tidak login)."""
     try:
         return await clerk_auth_service.authenticate_request(request)
+    except HTTPException:
+        return None
     except Exception:
         return None

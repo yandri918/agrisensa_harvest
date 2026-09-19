@@ -136,8 +136,14 @@ def test_create_harvest_endpoint_and_idempotency():
         ]
     }
 
-    # 1st Call: Create
-    res1 = client.post("/api/v1/harvests", json=payload)
+    # Unauthenticated call should be rejected with 401
+    res_unauth = client.post("/api/v1/harvests", json=payload)
+    assert res_unauth.status_code == 401
+
+    auth_headers = {"X-User-Id": "user_test_runner_1", "X-User-Email": "tester@agrisensa.ai"}
+
+    # 1st Call: Create with auth
+    res1 = client.post("/api/v1/harvests", json=payload, headers=auth_headers)
     assert res1.status_code == 201
     body1 = res1.json()
     assert body1["success"] is True
@@ -145,27 +151,29 @@ def test_create_harvest_endpoint_and_idempotency():
     assert body1["data"]["kpi_summary"]["production_kpis"]["productivity_kg_per_ha"] == 10000.0
 
     # 2nd Call: Same Idempotency Key -> Should return same harvest_id
-    res2 = client.post("/api/v1/harvests", json=payload)
+    res2 = client.post("/api/v1/harvests", json=payload, headers=auth_headers)
     assert res2.status_code == 201
     body2 = res2.json()
     assert body2["data"]["harvest_id"] == harvest_id
 
 
 def test_get_harvest_and_analytics_summary():
+    auth_headers = {"X-User-Id": "user_test_runner_1", "X-User-Email": "tester@agrisensa.ai"}
+
     # Query list
-    res = client.get("/api/v1/harvests")
+    res = client.get("/api/v1/harvests", headers=auth_headers)
     assert res.status_code == 200
     items = res.json()["data"]["items"]
     assert len(items) >= 1
 
     # Get single detail
     harvest_id = items[0]["harvest_id"]
-    res_detail = client.get(f"/api/v1/harvests/{harvest_id}")
+    res_detail = client.get(f"/api/v1/harvests/{harvest_id}", headers=auth_headers)
     assert res_detail.status_code == 200
     assert res_detail.json()["data"]["harvest_id"] == harvest_id
 
     # Get analytics summary
-    res_summary = client.get("/api/v1/analytics/summary")
+    res_summary = client.get("/api/v1/analytics/summary", headers=auth_headers)
     assert res_summary.status_code == 200
     summary = res_summary.json()["data"]
     assert summary["total_records"] >= 1
@@ -173,6 +181,8 @@ def test_get_harvest_and_analytics_summary():
 
 
 def test_validation_error_response():
+    auth_headers = {"X-User-Id": "user_test_runner_1", "X-User-Email": "tester@agrisensa.ai"}
+
     # Invalid request: negative harvest quantity
     bad_payload = {
         "farm_id": "FARM-BAD",
@@ -185,5 +195,5 @@ def test_validation_error_response():
         "harvest_quantity": -500, # Invalid
         "quantity_unit": "kg"
     }
-    res = client.post("/api/v1/harvests", json=bad_payload)
+    res = client.post("/api/v1/harvests", json=bad_payload, headers=auth_headers)
     assert res.status_code == 422

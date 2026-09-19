@@ -288,10 +288,7 @@ class DatabaseManager:
     def get_harvest_by_idempotency(self, key: str, user_id: Optional[str] = None) -> Optional[HarvestRecordResponse]:
         with self._get_connection() as conn:
             cursor = conn.cursor()
-            if user_id:
-                cursor.execute("SELECT * FROM harvests WHERE idempotency_key = ? AND user_id = ?", (key, user_id))
-            else:
-                cursor.execute("SELECT * FROM harvests WHERE idempotency_key = ?", (key,))
+            cursor.execute("SELECT * FROM harvests WHERE idempotency_key = ?", (key,))
             row = cursor.fetchone()
             if not row:
                 return None

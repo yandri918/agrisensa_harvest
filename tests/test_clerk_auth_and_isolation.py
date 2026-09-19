@@ -6,13 +6,21 @@ from app.services.db import db_manager
 client = TestClient(app)
 
 
-def test_auth_me_fallback():
-    """Menguji /auth/me saat tidak menyertakan token/header (fallback ke mode mandor)."""
+def test_auth_me_unauthenticated_rejected():
+    """Menguji bahwa /auth/me tanpa autentikasi Clerk ditolak dengan 401 Unauthorized."""
     response = client.get("/api/v1/auth/me")
+    assert response.status_code == 401
+    assert "Autentikasi diperlukan" in response.json()["detail"]
+
+
+def test_auth_me_authenticated():
+    """Menguji /auth/me saat menyertakan token/header otentikasi."""
+    headers = {"X-User-Id": "user_clerk_verified_123", "X-User-Email": "petani@agrisensa.ai"}
+    response = client.get("/api/v1/auth/me", headers=headers)
     assert response.status_code == 200
     data = response.json()
     assert data["success"] is True
-    assert "user_id" in data["data"]
+    assert data["data"]["user_id"] == "user_clerk_verified_123"
     assert "stats" in data["data"]
 
 

@@ -25,7 +25,68 @@
 </head>
 <body>
 
-  <div class="app-container">
+  <!-- FULL SCREEN CLERK AUTH GATEWAY (SHOWN BY DEFAULT UNTIL AUTHENTICATED) -->
+  <div id="authGateScreen" class="auth-gate-screen">
+    <div class="auth-gate-card">
+
+      <!-- Brand Header -->
+      <div style="text-align: center; margin-bottom: 22px;">
+        <div style="font-size: 42px; line-height: 1; margin-bottom: 10px; filter: drop-shadow(0 0 20px rgba(16, 185, 129, 0.6));">🌾</div>
+        <div style="display: inline-flex; align-items: center; gap: 8px; margin-bottom: 6px;">
+          <h1 style="font-family: 'Outfit', sans-serif; font-size: 26px; font-weight: 800; color: #f8fafc; letter-spacing: -0.02em; margin: 0;">
+            AgriSensa Harvest
+          </h1>
+          <span style="font-size: 11px; font-weight: 700; background: rgba(16, 185, 129, 0.2); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.4); padding: 2px 8px; border-radius: 9999px;">
+            v1.0 Pro
+          </span>
+        </div>
+        <p style="font-size: 13.5px; color: #94a3b8; line-height: 1.5; margin: 6px 0 0 0;">
+          Masuk dengan Email Anda untuk membuka akses dasbor analitik & pencatatan panen.
+        </p>
+      </div>
+
+      <!-- Tab Switcher: Sign In vs Sign Up -->
+      <div class="auth-tabs-wrapper" style="display: flex; background: rgba(15, 23, 42, 0.85); padding: 4px; border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.08); margin-bottom: 20px;">
+        <button id="authTabSignInBtn" class="auth-tab-item active" style="flex: 1; padding: 9px 12px; font-size: 13px; font-weight: 700; border-radius: 8px; border: 1px solid rgba(16, 185, 129, 0.3); cursor: pointer; transition: all 0.2s; background: rgba(16, 185, 129, 0.2); color: #34d399;">
+          🔐 Masuk (Sign In)
+        </button>
+        <button id="authTabSignUpBtn" class="auth-tab-item" style="flex: 1; padding: 9px 12px; font-size: 13px; font-weight: 600; border-radius: 8px; border: none; cursor: pointer; transition: all 0.2s; background: transparent; color: #94a3b8;">
+          ✨ Buat Akun (Sign Up)
+        </button>
+      </div>
+
+      <!-- Clerk Mount Container -->
+      <div id="clerkSignInContainer" style="display: flex; justify-content: center; min-height: 260px; align-items: center; width: 100%;">
+        <div class="auth-loading-spinner" id="clerkLoadingPlaceholder" style="display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 36px 0;">
+          <span class="pulse-dot" style="background: var(--emerald-400); width: 16px; height: 16px;"></span>
+          <span style="font-size: 13px; color: var(--text-secondary); font-weight: 500;">Menghubungkan ke Clerk Authentication Cloud...</span>
+        </div>
+      </div>
+
+      <!-- Feature Highlight Badges -->
+      <div style="display: flex; justify-content: center; gap: 8px; flex-wrap: wrap; margin-top: 20px; padding-top: 16px; border-top: 1px solid rgba(255, 255, 255, 0.06);">
+        <span style="font-size: 11px; color: #cbd5e1; background: rgba(255, 255, 255, 0.04); padding: 4px 10px; border-radius: 6px; border: 1px solid rgba(255, 255, 255, 0.06);">
+          📊 Isolasi Data Multi-Tenant
+        </span>
+        <span style="font-size: 11px; color: #cbd5e1; background: rgba(255, 255, 255, 0.04); padding: 4px 10px; border-radius: 6px; border: 1px solid rgba(255, 255, 255, 0.06);">
+          🤖 AI Agronomi & Analisis ROI
+        </span>
+        <span style="font-size: 11px; color: #cbd5e1; background: rgba(255, 255, 255, 0.04); padding: 4px 10px; border-radius: 6px; border: 1px solid rgba(255, 255, 255, 0.06);">
+          🔒 Keamanan Terenkripsi TLS 1.3
+        </span>
+      </div>
+
+      <!-- Footer Trust Notice -->
+      <div style="margin-top: 16px; text-align: center;">
+        <span style="font-size: 11px; color: var(--text-muted);">
+          🛡️ Setiap akun memiliki database panen terisolasi & terproteksi otomatis.
+        </span>
+      </div>
+    </div>
+  </div>
+
+  <!-- MAIN DASHBOARD APPLICATION (HIDDEN BY DEFAULT UNTIL AUTHENTICATED) -->
+  <div id="mainDashboardApp" class="app-container" style="display: none;">
     
     <!-- TOP NAVIGATION & BRAND HEADER -->
     <header class="header-bar glass-panel">
@@ -565,74 +626,6 @@
             <button type="button" class="btn btn-secondary" id="testWebhookBtn">🧪 Kirim Uji Coba</button>
           </div>
         </form>
-      </div>
-    </div>
-  </div>
-
-  <!-- CLERK AUTH OVERLAY & PORTAL GATEWAY -->
-  <div id="clerkAuthModal" class="modal-backdrop" style="display: none; z-index: 9999; backdrop-filter: blur(24px); background: rgba(3, 7, 18, 0.88);">
-    <div class="modal-card clerk-modal-card" style="max-width: 500px; width: 95%; border: 1px solid rgba(16, 185, 129, 0.35); box-shadow: 0 30px 70px -12px rgba(0,0,0,0.85), 0 0 45px rgba(16, 185, 129, 0.18); padding: 28px 24px; position: relative;">
-      
-      <!-- Close / Dismiss Button -->
-      <button id="closeAuthModalBtn" type="button" style="position: absolute; top: 16px; right: 18px; background: transparent; border: none; color: #94a3b8; font-size: 20px; cursor: pointer; line-height: 1; transition: color 0.2s;" title="Tutup">
-        ✕
-      </button>
-
-      <!-- Brand Header -->
-      <div style="text-align: center; margin-bottom: 20px;">
-        <div style="font-size: 38px; line-height: 1; margin-bottom: 8px; filter: drop-shadow(0 0 16px rgba(16, 185, 129, 0.5));">🌾</div>
-        <div style="display: inline-flex; align-items: center; gap: 8px; margin-bottom: 4px;">
-          <h2 style="font-family: 'Outfit', sans-serif; font-size: 22px; font-weight: 800; color: #f8fafc; letter-spacing: -0.02em; margin: 0;">
-            AgriSensa Harvest
-          </h2>
-          <span style="font-size: 10px; font-weight: 700; background: rgba(16, 185, 129, 0.2); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.4); padding: 2px 8px; border-radius: 9999px;">
-            v1.0 Pro
-          </span>
-        </div>
-        <p style="font-size: 12.5px; color: #94a3b8; line-height: 1.5; margin: 6px 0 0 0;">
-          Sistem Pintar Pencatatan, Analisis Finansial & Intelijen Agronomi
-        </p>
-      </div>
-
-      <!-- Tab Switcher: Sign In vs Sign Up -->
-      <div class="auth-tabs-wrapper" style="display: flex; background: rgba(15, 23, 42, 0.8); padding: 4px; border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.08); margin-bottom: 18px;">
-        <button id="authTabSignInBtn" class="auth-tab-item active" style="flex: 1; padding: 8px 12px; font-size: 12.5px; font-weight: 700; border-radius: 8px; border: none; cursor: pointer; transition: all 0.2s; background: rgba(16, 185, 129, 0.2); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.3);">
-          🔐 Masuk (Sign In)
-        </button>
-        <button id="authTabSignUpBtn" class="auth-tab-item" style="flex: 1; padding: 8px 12px; font-size: 12.5px; font-weight: 600; border-radius: 8px; border: none; cursor: pointer; transition: all 0.2s; background: transparent; color: #94a3b8;">
-          ✨ Daftar Akun (Sign Up)
-        </button>
-      </div>
-
-      <!-- Clerk Mount Container -->
-      <div id="clerkSignInContainer" style="display: flex; justify-content: center; min-height: 250px; align-items: center; width: 100%;">
-        <div class="auth-loading-spinner" id="clerkLoadingPlaceholder" style="display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 30px 0;">
-          <span class="pulse-dot" style="background: var(--emerald-400); width: 14px; height: 14px;"></span>
-          <span style="font-size: 13px; color: var(--text-secondary);">Menghubungkan ke Clerk Authentication Cloud...</span>
-        </div>
-      </div>
-
-      <!-- Feature Highlight Badges -->
-      <div style="display: flex; justify-content: center; gap: 8px; flex-wrap: wrap; margin-top: 18px; padding-top: 14px; border-top: 1px solid rgba(255, 255, 255, 0.06);">
-        <span style="font-size: 10.5px; color: #cbd5e1; background: rgba(255, 255, 255, 0.04); padding: 4px 10px; border-radius: 6px; border: 1px solid rgba(255, 255, 255, 0.06);">
-          📊 Kalkulasi Otomatis BEP & ROI
-        </span>
-        <span style="font-size: 10.5px; color: #cbd5e1; background: rgba(255, 255, 255, 0.04); padding: 4px 10px; border-radius: 6px; border: 1px solid rgba(255, 255, 255, 0.06);">
-          🤖 Rekomendasi AI Agronomi
-        </span>
-        <span style="font-size: 10.5px; color: #cbd5e1; background: rgba(255, 255, 255, 0.04); padding: 4px 10px; border-radius: 6px; border: 1px solid rgba(255, 255, 255, 0.06);">
-          📁 Google Drive & WA Alert
-        </span>
-      </div>
-
-      <!-- Footer Mode Offline -->
-      <div style="margin-top: 16px; display: flex; justify-content: space-between; align-items: center;">
-        <span style="font-size: 11px; color: var(--text-muted); display: flex; align-items: center; gap: 4px;">
-          🔒 TLS 1.3 • Clerk Identity
-        </span>
-        <button id="bypassOfflineModeBtn" type="button" class="btn btn-secondary btn-sm" style="font-size: 11px; padding: 4px 10px;" title="Gunakan mode offline / mandor demo tanpa login jika sedang di lapangan tanpa sinyal">
-          ⚡ Mode Mandor Demo
-        </button>
       </div>
     </div>
   </div>

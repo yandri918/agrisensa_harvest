@@ -1189,3 +1189,38 @@ input:focus, select:focus, textarea:focus {
   background-color: rgba(255, 255, 255, 0.05) !important;
   color: #f8fafc !important;
 }
+
+/* =====================================================================
+   DEDICATED FULL-SCREEN AUTHENTICATION GATEWAY
+   ===================================================================== */
+#mainDashboardApp {
+  display: none;
+}
+
+.auth-gate-screen {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 99999;
+  background: radial-gradient(circle at 50% 25%, #064e3b 0%, #022c22 45%, #030712 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 16px;
+  overflow-y: auto;
+}
+
+.auth-gate-card {
+  max-width: 480px;
+  width: 100%;
+  background: rgba(11, 19, 36, 0.92);
+  backdrop-filter: blur(32px);
+  -webkit-backdrop-filter: blur(32px);
+  border: 1px solid rgba(16, 185, 129, 0.4);
+  border-radius: var(--radius-xl);
+  box-shadow: 0 30px 80px -12px rgba(0,0,0,0.95), 0 0 60px rgba(16, 185, 129, 0.2);
+  padding: 36px 28px;
+  position: relative;
+  margin: auto;
+}

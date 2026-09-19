@@ -40,7 +40,6 @@ document.addEventListener('DOMContentLoaded', () => {
   initEventListeners();
   initNetworkMonitoring();
   updateOfflineBanner();
-  fetchDashboardData();
   setupLiveCalculator();
   initClerkAuth();
 });
@@ -68,12 +67,30 @@ async function getAuthHeaders() {
 }
 
 async function apiFetch(url, options = {}) {
+  if (!window.Clerk || !window.Clerk.user) {
+    console.warn('apiFetch blocked: User not authenticated');
+    return new Response(JSON.stringify({ success: false, message: 'Autentikasi diperlukan.' }), {
+      status: 401,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
   const authHeaders = await getAuthHeaders();
   const combinedHeaders = { ...authHeaders, ...(options.headers || {}) };
   if (options.body instanceof FormData) {
     delete combinedHeaders['Content-Type'];
   }
-  return fetch(url, { ...options, headers: combinedHeaders });
+  const response = await fetch(url, { ...options, headers: combinedHeaders });
+  if (response.status === 401) {
+    if (window.Clerk && window.Clerk.signOut) {
+      try {
+        await window.Clerk.signOut();
+      } catch (e) {
+        console.warn('Sign out notice:', e);
+      }
+    }
+    handleClerkAuthState();
+  }
+  return response;
 }
 
 const CLERK_APPEARANCE = {
@@ -106,23 +123,8 @@ let currentAuthTab = 'signin';
 
 async function initClerkAuth() {
   const clerkSignInBtn = document.getElementById('clerkSignInBtn');
-  const bypassOfflineBtn = document.getElementById('bypassOfflineModeBtn');
-  const closeAuthModalBtn = document.getElementById('closeAuthModalBtn');
   const tabSignIn = document.getElementById('authTabSignInBtn');
   const tabSignUp = document.getElementById('authTabSignUpBtn');
-  
-  if (bypassOfflineBtn) {
-    bypassOfflineBtn.addEventListener('click', () => {
-      document.getElementById('clerkAuthModal').style.display = 'none';
-      showToast('⚡ Masuk dalam Mode Mandor Demo (Offline)', 'warning');
-    });
-  }
-
-  if (closeAuthModalBtn) {
-    closeAuthModalBtn.addEventListener('click', () => {
-      document.getElementById('clerkAuthModal').style.display = 'none';
-    });
-  }
 
   if (clerkSignInBtn) {
     clerkSignInBtn.addEventListener('click', () => {
@@ -146,7 +148,7 @@ async function initClerkAuth() {
         clerkLoaded = true;
         await handleClerkAuthState();
 
-        // Listen for session/user updates
+        // Listen for session/user updates (login / logout)
         window.Clerk.addListener(async () => {
           await handleClerkAuthState();
         });
@@ -157,13 +159,13 @@ async function initClerkAuth() {
     }
   }, 100);
 
-  // Safety timeout: if Clerk CDN not reached within 4 seconds (e.g. offline field)
+  // Safety timeout: if Clerk CDN not reached within 5 seconds
   setTimeout(() => {
     if (!clerkLoaded && !window.Clerk) {
       clearInterval(checkClerkInterval);
       showFallbackAuth();
     }
-  }, 4000);
+  }, 5000);
 }
 
 function switchAuthTab(tab) {
@@ -206,9 +208,8 @@ function switchAuthTab(tab) {
 }
 
 async function handleClerkAuthState() {
-  if (!window.Clerk) return;
-
-  const authModal = document.getElementById('clerkAuthModal');
+  const authGate = document.getElementById('authGateScreen');
+  const mainApp = document.getElementById('mainDashboardApp');
   const userPill = document.getElementById('clerkUserPill');
   const signInBtn = document.getElementById('clerkSignInBtn');
   const userEmailSpan = document.getElementById('clerkUserEmail');
@@ -216,15 +217,16 @@ async function handleClerkAuthState() {
   const signInContainer = document.getElementById('clerkSignInContainer');
   const farmerIdInput = document.getElementById('farmer_id');
 
-  if (window.Clerk.user) {
+  if (window.Clerk && window.Clerk.user) {
+    // 1. User is Authenticated: Unlock dashboard & sync data
     currentUser = window.Clerk.user;
     const email = currentUser.primaryEmailAddress ? currentUser.primaryEmailAddress.emailAddress : (currentUser.username || 'Pengguna');
-    const name = currentUser.fullName || currentUser.firstName || email.split('@')[0];
     
     if (userEmailSpan) userEmailSpan.textContent = email;
     if (userPill) userPill.style.display = 'flex';
     if (signInBtn) signInBtn.style.display = 'none';
-    if (authModal) authModal.style.display = 'none';
+    if (authGate) authGate.style.display = 'none';
+    if (mainApp) mainApp.style.display = 'block';
 
     // Auto fill default farmer ID in harvest creation form
     if (farmerIdInput) {
@@ -237,7 +239,7 @@ async function handleClerkAuthState() {
       window.Clerk.mountUserButton(userBtnContainer);
     }
 
-    // Sync account to database & refresh isolated dashboard
+    // Sync account to database & load personal dashboard data
     try {
       await apiFetch(`${API_BASE}/auth/sync`, { method: 'POST' });
     } catch (e) {
@@ -245,12 +247,27 @@ async function handleClerkAuthState() {
     }
     fetchDashboardData(currentFilters);
   } else {
+    // 2. User is NOT Authenticated: Lock dashboard completely & show auth portal
     currentUser = null;
+    if (mainApp) mainApp.style.display = 'none';
     if (userPill) userPill.style.display = 'none';
     if (signInBtn) signInBtn.style.display = 'inline-flex';
-    if (farmerIdInput) farmerIdInput.value = 'USR-028';
+    if (farmerIdInput) farmerIdInput.value = '';
+
+    // Clear sensitive data from dashboard view
+    harvestRecords = [];
+    renderTable([]);
+    updateKpiCards({
+      total_records: 0,
+      total_harvest_kg: 0,
+      total_gross_revenue_idr: 0,
+      total_net_profit_idr: 0,
+      avg_productivity_kg_per_ha: 0,
+      avg_marketable_yield_percent: 0,
+      avg_roi_percent: 0
+    });
     
-    // Mount Sign In widget inside auth modal
+    // Mount Sign In / Sign Up widget inside auth portal
     if (signInContainer && window.Clerk && window.Clerk.mountSignIn) {
       signInContainer.innerHTML = '';
       if (currentAuthTab === 'signup' && window.Clerk.mountSignUp) {
@@ -259,13 +276,13 @@ async function handleClerkAuthState() {
         window.Clerk.mountSignIn(signInContainer, { routing: 'hash', appearance: CLERK_APPEARANCE });
       }
     }
-    if (authModal) authModal.style.display = 'flex';
+    if (authGate) authGate.style.display = 'flex';
   }
 }
 
 function openClerkModal(tab = 'signin') {
-  const authModal = document.getElementById('clerkAuthModal');
-  if (authModal) authModal.style.display = 'flex';
+  const authGate = document.getElementById('authGateScreen');
+  if (authGate) authGate.style.display = 'flex';
   switchAuthTab(tab);
 }
 
@@ -273,17 +290,18 @@ function showFallbackAuth() {
   const placeholder = document.getElementById('clerkLoadingPlaceholder');
   if (placeholder) {
     placeholder.innerHTML = `
-      <div style="padding: 16px; text-align: center;">
-        <p style="font-size: 13px; color: #fbbf24; margin-bottom: 12px;">📡 Mode Offline Lapangan Siap</p>
-        <button id="offlineDirectBtn" class="btn btn-primary btn-sm" style="font-size: 12px;">Masuk Mode Mandor Kebun (Bypass)</button>
+      <div style="padding: 20px; text-align: center;">
+        <p style="font-size: 13.5px; color: #f87171; margin-bottom: 12px; font-weight: 600;">
+          ⚠️ Tidak dapat memuat Clerk Authentication Cloud
+        </p>
+        <p style="font-size: 12px; color: #94a3b8; margin-bottom: 16px;">
+          Pastikan koneksi internet Anda stabil dan tidak ada pemblokir skrip aktif.
+        </p>
+        <button onclick="window.location.reload()" class="btn btn-primary btn-sm" style="font-size: 12px;">
+          🔄 Muat Ulang Halaman
+        </button>
       </div>
     `;
-    const btn = document.getElementById('offlineDirectBtn');
-    if (btn) {
-      btn.addEventListener('click', () => {
-        document.getElementById('clerkAuthModal').style.display = 'none';
-      });
-    }
   }
 }
 
