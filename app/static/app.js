@@ -76,25 +76,65 @@ async function apiFetch(url, options = {}) {
   return fetch(url, { ...options, headers: combinedHeaders });
 }
 
-// =====================================================================
-// CLERK AUTHENTICATION (EMAIL LOGIN)
-// =====================================================================
+const CLERK_APPEARANCE = {
+  variables: {
+    colorPrimary: '#10b981',
+    colorBackground: '#070d1a',
+    colorText: '#f8fafc',
+    colorTextSecondary: '#94a3b8',
+    colorInputBackground: '#0b1324',
+    colorInputText: '#f8fafc',
+    colorNeutral: '#334155',
+    borderRadius: '0.75rem',
+    fontFamily: "'Plus Jakarta Sans', sans-serif"
+  },
+  elements: {
+    card: 'bg-transparent shadow-none border-0 p-0 text-slate-100',
+    headerTitle: 'text-emerald-400 font-bold text-lg',
+    headerSubtitle: 'text-slate-400 text-xs',
+    formFieldLabel: 'text-slate-300 font-semibold text-xs',
+    formFieldInput: 'bg-[#070d1a] border border-slate-700 text-slate-100 rounded-xl focus:border-emerald-500',
+    formButtonPrimary: 'bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 text-slate-950 font-bold rounded-xl shadow-lg',
+    footerActionLink: 'text-emerald-400 hover:text-emerald-300 font-semibold',
+    dividerLine: 'bg-slate-800',
+    dividerText: 'text-slate-500 text-xs',
+    socialButtonsBlockButton: 'bg-slate-900 border border-slate-800 text-slate-200 hover:bg-slate-800'
+  }
+};
+
+let currentAuthTab = 'signin';
 
 async function initClerkAuth() {
   const clerkSignInBtn = document.getElementById('clerkSignInBtn');
   const bypassOfflineBtn = document.getElementById('bypassOfflineModeBtn');
+  const closeAuthModalBtn = document.getElementById('closeAuthModalBtn');
+  const tabSignIn = document.getElementById('authTabSignInBtn');
+  const tabSignUp = document.getElementById('authTabSignUpBtn');
   
   if (bypassOfflineBtn) {
     bypassOfflineBtn.addEventListener('click', () => {
       document.getElementById('clerkAuthModal').style.display = 'none';
-      showToast('⚡ Masuk dalam Mode Lapangan (Offline)', 'warning');
+      showToast('⚡ Masuk dalam Mode Mandor Demo (Offline)', 'warning');
+    });
+  }
+
+  if (closeAuthModalBtn) {
+    closeAuthModalBtn.addEventListener('click', () => {
+      document.getElementById('clerkAuthModal').style.display = 'none';
     });
   }
 
   if (clerkSignInBtn) {
     clerkSignInBtn.addEventListener('click', () => {
-      openClerkModal();
+      openClerkModal('signin');
     });
+  }
+
+  if (tabSignIn) {
+    tabSignIn.addEventListener('click', () => switchAuthTab('signin'));
+  }
+  if (tabSignUp) {
+    tabSignUp.addEventListener('click', () => switchAuthTab('signup'));
   }
 
   // Poll for Clerk global object if loaded via CDN
@@ -102,26 +142,7 @@ async function initClerkAuth() {
     if (window.Clerk) {
       clearInterval(checkClerkInterval);
       try {
-        await window.Clerk.load({
-          appearance: {
-            variables: {
-              colorPrimary: '#10b981',
-              colorBackground: '#0b0f19',
-              colorText: '#f8fafc',
-              colorTextSecondary: '#94a3b8',
-              borderRadius: '0.75rem',
-            },
-            elements: {
-              card: 'border border-slate-800/80 shadow-2xl backdrop-blur-xl bg-[#090e1a]/95 text-slate-100',
-              formFieldInput: 'bg-[#070b14] border-slate-800 text-slate-100 focus:border-emerald-500',
-              formButtonPrimary: 'bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-bold',
-              headerTitle: 'text-slate-100 font-bold',
-              headerSubtitle: 'text-slate-400',
-              socialButtonsBlockButton: 'bg-slate-900 border-slate-800 text-slate-200 hover:bg-slate-800',
-              footerActionLink: 'text-emerald-400 hover:text-emerald-300'
-            }
-          }
-        });
+        await window.Clerk.load({ appearance: CLERK_APPEARANCE });
         clerkLoaded = true;
         await handleClerkAuthState();
 
@@ -143,6 +164,45 @@ async function initClerkAuth() {
       showFallbackAuth();
     }
   }, 4000);
+}
+
+function switchAuthTab(tab) {
+  currentAuthTab = tab;
+  const tabSignIn = document.getElementById('authTabSignInBtn');
+  const tabSignUp = document.getElementById('authTabSignUpBtn');
+  const container = document.getElementById('clerkSignInContainer');
+
+  if (tab === 'signin') {
+    if (tabSignIn) {
+      tabSignIn.style.background = 'rgba(16, 185, 129, 0.2)';
+      tabSignIn.style.color = '#34d399';
+      tabSignIn.style.border = '1px solid rgba(16, 185, 129, 0.3)';
+    }
+    if (tabSignUp) {
+      tabSignUp.style.background = 'transparent';
+      tabSignUp.style.color = '#94a3b8';
+      tabSignUp.style.border = 'none';
+    }
+    if (container && window.Clerk && window.Clerk.mountSignIn) {
+      container.innerHTML = '';
+      window.Clerk.mountSignIn(container, { routing: 'hash', appearance: CLERK_APPEARANCE });
+    }
+  } else {
+    if (tabSignUp) {
+      tabSignUp.style.background = 'rgba(16, 185, 129, 0.2)';
+      tabSignUp.style.color = '#34d399';
+      tabSignUp.style.border = '1px solid rgba(16, 185, 129, 0.3)';
+    }
+    if (tabSignIn) {
+      tabSignIn.style.background = 'transparent';
+      tabSignIn.style.color = '#94a3b8';
+      tabSignIn.style.border = 'none';
+    }
+    if (container && window.Clerk && window.Clerk.mountSignUp) {
+      container.innerHTML = '';
+      window.Clerk.mountSignUp(container, { routing: 'hash', appearance: CLERK_APPEARANCE });
+    }
+  }
 }
 
 async function handleClerkAuthState() {
@@ -191,33 +251,22 @@ async function handleClerkAuthState() {
     if (farmerIdInput) farmerIdInput.value = 'USR-028';
     
     // Mount Sign In widget inside auth modal
-    if (signInContainer && window.Clerk.mountSignIn) {
+    if (signInContainer && window.Clerk && window.Clerk.mountSignIn) {
       signInContainer.innerHTML = '';
-      window.Clerk.mountSignIn(signInContainer, {
-        routing: 'hash',
-        appearance: {
-          variables: {
-            colorPrimary: '#10b981',
-            colorBackground: '#0b0f19',
-            colorText: '#f8fafc',
-          }
-        }
-      });
+      if (currentAuthTab === 'signup' && window.Clerk.mountSignUp) {
+        window.Clerk.mountSignUp(signInContainer, { routing: 'hash', appearance: CLERK_APPEARANCE });
+      } else {
+        window.Clerk.mountSignIn(signInContainer, { routing: 'hash', appearance: CLERK_APPEARANCE });
+      }
     }
     if (authModal) authModal.style.display = 'flex';
   }
 }
 
-function openClerkModal() {
+function openClerkModal(tab = 'signin') {
   const authModal = document.getElementById('clerkAuthModal');
   if (authModal) authModal.style.display = 'flex';
-  if (window.Clerk && !window.Clerk.user) {
-    const signInContainer = document.getElementById('clerkSignInContainer');
-    if (signInContainer && window.Clerk.mountSignIn) {
-      signInContainer.innerHTML = '';
-      window.Clerk.mountSignIn(signInContainer, { routing: 'hash' });
-    }
-  }
+  switchAuthTab(tab);
 }
 
 function showFallbackAuth() {

@@ -1041,49 +1041,151 @@ input:focus, select:focus, textarea:focus {
   animation: modalScaleIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-/* Clerk Widget Custom Theme Overrides */
-.cl-rootBox {
-  width: 100% !important;
-  max-width: 420px !important;
+.auth-tab-item:hover {
+  color: #f1f5f9 !important;
 }
 
-.cl-card {
+/* =====================================================================
+   CLERK WIDGET DEEP THEME OVERRIDES (NATIVE DARK EMERALD INTEGRATION)
+   ===================================================================== */
+.cl-rootBox {
+  width: 100% !important;
+  max-width: 440px !important;
+  display: flex !important;
+  justify-content: center !important;
+}
+
+.cl-cardBox, .cl-card {
+  background: transparent !important;
   background-color: transparent !important;
   box-shadow: none !important;
   border: none !important;
+  padding: 0 !important;
+  width: 100% !important;
+}
+
+.cl-header {
+  margin-bottom: 12px !important;
 }
 
 .cl-headerTitle {
   color: #f8fafc !important;
   font-family: 'Outfit', sans-serif !important;
-}
-
-.cl-headerSubtitle, .cl-dividerText {
-  color: #94a3b8 !important;
-}
-
-.cl-formButtonPrimary {
-  background-color: #10b981 !important;
-  color: #022c22 !important;
+  font-size: 18px !important;
   font-weight: 700 !important;
-  border-radius: 10px !important;
 }
 
-.cl-formButtonPrimary:hover {
-  background-color: #059669 !important;
+.cl-headerSubtitle, .cl-dividerText, .cl-footerActionText {
+  color: #94a3b8 !important;
+  font-size: 12px !important;
+}
+
+.cl-formFieldLabel {
+  color: #e2e8f0 !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  margin-bottom: 4px !important;
 }
 
 .cl-formFieldInput {
-  background-color: #0b0f19 !important;
-  border-color: rgba(255, 255, 255, 0.1) !important;
+  background-color: #070d1a !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
   color: #f8fafc !important;
-  border-radius: 8px !important;
+  border-radius: 10px !important;
+  padding: 10px 14px !important;
+  font-size: 13.5px !important;
+  transition: all 0.2s ease !important;
 }
 
 .cl-formFieldInput:focus {
   border-color: #10b981 !important;
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.2) !important;
+  outline: none !important;
+}
+
+.cl-formButtonPrimary {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%) !important;
+  color: #022c22 !important;
+  font-weight: 800 !important;
+  font-size: 13.5px !important;
+  border-radius: 10px !important;
+  padding: 11px 16px !important;
+  box-shadow: 0 4px 14px rgba(16, 185, 129, 0.35) !important;
+  border: none !important;
+  cursor: pointer !important;
+  transition: all 0.2s ease !important;
+  margin-top: 8px !important;
+}
+
+.cl-formButtonPrimary:hover {
+  background: linear-gradient(135deg, #34d399 0%, #10b981 100%) !important;
+  box-shadow: 0 6px 20px rgba(16, 185, 129, 0.5) !important;
+  transform: translateY(-1px) !important;
+}
+
+.cl-footerActionLink {
+  color: #34d399 !important;
+  font-weight: 700 !important;
+  text-decoration: none !important;
+  transition: color 0.15s ease !important;
+}
+
+.cl-footerActionLink:hover {
+  color: #6ee7b7 !important;
+  text-decoration: underline !important;
+}
+
+.cl-socialButtonsBlockButton {
+  background-color: rgba(15, 23, 42, 0.8) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  color: #f1f5f9 !important;
+  border-radius: 10px !important;
+  transition: all 0.2s ease !important;
+}
+
+.cl-socialButtonsBlockButton:hover {
+  background-color: rgba(30, 41, 59, 0.9) !important;
+  border-color: rgba(16, 185, 129, 0.4) !important;
+}
+
+.cl-dividerLine {
+  background-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+.cl-identityPreview {
+  background-color: #0b1324 !important;
+  border: 1px solid rgba(16, 185, 129, 0.25) !important;
+  border-radius: 10px !important;
+}
+
+.cl-identityPreviewText {
+  color: #f8fafc !important;
 }
 
 .cl-userButtonTrigger {
   border-radius: 50% !important;
+  outline: none !important;
+  border: 2px solid rgba(16, 185, 129, 0.5) !important;
+  transition: all 0.2s ease !important;
+}
+
+.cl-userButtonTrigger:hover {
+  border-color: #34d399 !important;
+  box-shadow: 0 0 10px rgba(16, 185, 129, 0.4) !important;
+}
+
+.cl-userButtonPopoverCard {
+  background-color: #0b1324 !important;
+  border: 1px solid rgba(255, 255, 255, 0.15) !important;
+  border-radius: 14px !important;
+  box-shadow: 0 20px 40px rgba(0,0,0,0.8) !important;
+}
+
+.cl-userButtonPopoverActionButton {
+  color: #cbd5e1 !important;
+}
+
+.cl-userButtonPopoverActionButton:hover {
+  background-color: rgba(255, 255, 255, 0.05) !important;
+  color: #f8fafc !important;
 }
