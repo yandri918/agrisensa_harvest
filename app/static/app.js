@@ -1117,6 +1117,29 @@ async function handleHarvestSubmit(e) {
     notes: document.getElementById('notes').value
   };
 
+  // Extract optional quality grades (Grade A, B, C)
+  const qualityGrades = [];
+  const gAKg = parseFloat(document.getElementById('grade_a_kg').value);
+  const gAPrice = parseFloat(document.getElementById('grade_a_price').value);
+  const gBKg = parseFloat(document.getElementById('grade_b_kg').value);
+  const gBPrice = parseFloat(document.getElementById('grade_b_price').value);
+  const gCKg = parseFloat(document.getElementById('grade_c_kg').value);
+  const gCPrice = parseFloat(document.getElementById('grade_c_price').value);
+
+  if (!isNaN(gAKg) && gAKg > 0) {
+    qualityGrades.push({ grade: 'A', quantity_kg: gAKg, price_per_kg: !isNaN(gAPrice) ? gAPrice : payload.selling_price_per_unit, notes: 'Mutu Super / Utama' });
+  }
+  if (!isNaN(gBKg) && gBKg > 0) {
+    qualityGrades.push({ grade: 'B', quantity_kg: gBKg, price_per_kg: !isNaN(gBPrice) ? gBPrice : (payload.selling_price_per_unit * 0.85), notes: 'Mutu Standar' });
+  }
+  if (!isNaN(gCKg) && gCKg > 0) {
+    qualityGrades.push({ grade: 'C', quantity_kg: gCKg, price_per_kg: !isNaN(gCPrice) ? gCPrice : (payload.selling_price_per_unit * 0.35), notes: 'Afkir / Rusak' });
+  }
+
+  if (qualityGrades.length > 0) {
+    payload.quality_grades = qualityGrades;
+  }
+
   // If currently offline, immediately save to offline queue
   if (!navigator.onLine) {
     saveToOfflineQueue(payload);
@@ -1151,7 +1174,7 @@ async function handleHarvestSubmit(e) {
 function loadPreset(type) {
   if (type === 'cabai') {
     document.getElementById('farm_id').value = 'FARM-001';
-    document.getElementById('farmer_id').value = 'USR-028';
+    document.getElementById('farmer_id').value = currentUser ? currentUser.id : 'USR-028';
     document.getElementById('commodity').value = 'Cabai Merah';
     document.getElementById('variety').value = 'Lado F1';
     document.getElementById('planting_date').value = '2026-05-10';
@@ -1165,9 +1188,15 @@ function loadPreset(type) {
     document.getElementById('selling_price_per_unit').value = 42000;
     document.getElementById('production_cost').value = 68500000;
     document.getElementById('sales_channel').value = 'pasar_induk';
+    document.getElementById('grade_a_kg').value = 2000;
+    document.getElementById('grade_a_price').value = 45000;
+    document.getElementById('grade_b_kg').value = 980;
+    document.getElementById('grade_b_price').value = 36000;
+    document.getElementById('grade_c_kg').value = 270;
+    document.getElementById('grade_c_price').value = 12000;
   } else if (type === 'padi') {
     document.getElementById('farm_id').value = 'FARM-002';
-    document.getElementById('farmer_id').value = 'USR-014';
+    document.getElementById('farmer_id').value = currentUser ? currentUser.id : 'USR-014';
     document.getElementById('commodity').value = 'Padi Sawah';
     document.getElementById('variety').value = 'Inpari 32';
     document.getElementById('planting_date').value = '2026-04-15';
@@ -1181,9 +1210,15 @@ function loadPreset(type) {
     document.getElementById('selling_price_per_unit').value = 6500000;
     document.getElementById('production_cost').value = 24000000;
     document.getElementById('sales_channel').value = 'koperasi_desa';
+    document.getElementById('grade_a_kg').value = 5500;
+    document.getElementById('grade_a_price').value = 6800;
+    document.getElementById('grade_b_kg').value = 2000;
+    document.getElementById('grade_b_price').value = 5700;
+    document.getElementById('grade_c_kg').value = 300;
+    document.getElementById('grade_c_price').value = 2500;
   } else if (type === 'jagung') {
     document.getElementById('farm_id').value = 'FARM-003';
-    document.getElementById('farmer_id').value = 'USR-035';
+    document.getElementById('farmer_id').value = currentUser ? currentUser.id : 'USR-035';
     document.getElementById('commodity').value = 'Jagung Pipil';
     document.getElementById('variety').value = 'NK212';
     document.getElementById('planting_date').value = '2026-05-01';
@@ -1197,6 +1232,12 @@ function loadPreset(type) {
     document.getElementById('selling_price_per_unit').value = 5200;
     document.getElementById('production_cost').value = 14500000;
     document.getElementById('sales_channel').value = 'pabrik_pakan';
+    document.getElementById('grade_a_kg').value = 4500;
+    document.getElementById('grade_a_price').value = 5400;
+    document.getElementById('grade_b_kg').value = 1600;
+    document.getElementById('grade_b_price').value = 4600;
+    document.getElementById('grade_c_kg').value = 300;
+    document.getElementById('grade_c_price').value = 2000;
   }
 
   updateLiveCalculation();

@@ -13,7 +13,7 @@ class ReportService:
         ai_eval = ai_insight_service.evaluate_harvest_record(record)
 
         grades_rows = ""
-        if record.quality_grades:
+        if record.quality_grades and len(record.quality_grades) > 0:
             for g in record.quality_grades:
                 grades_rows += f"""
                 <tr>
@@ -25,7 +25,23 @@ class ReportService:
                 </tr>
                 """
         else:
-            grades_rows = "<tr><td colspan='5' style='text-align: center; color: #94a3b8;'>Tidak ada rincian sub-grade khusus</td></tr>"
+            marketable_rev = record.marketable_quantity_kg * record.selling_price_per_kg
+            grades_rows = f"""
+            <tr>
+              <td><strong>Grade Layak Jual (Marketable)</strong></td>
+              <td>{record.marketable_quantity_kg:,.1f} kg</td>
+              <td>Rp {record.selling_price_per_kg:,.0f}</td>
+              <td>Rp {marketable_rev:,.0f}</td>
+              <td>Mutu standar konsumsi / pasar</td>
+            </tr>
+            <tr>
+              <td><strong>Grade Afkir / Rusak (Loss)</strong></td>
+              <td>{record.damaged_quantity_kg:,.1f} kg</td>
+              <td>Rp 0</td>
+              <td>Rp 0</td>
+              <td>Tidak layak jual ({record.damage_cause or 'Sortasi Lapangan'})</td>
+            </tr>
+            """
 
         productivity_val = f"{prod_kpi.productivity_kg_per_ha:,.1f}" if prod_kpi else "-"
         roi_val = f"{econ_kpi.roi_percent:.2f}%" if econ_kpi else "-"

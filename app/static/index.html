@@ -526,6 +526,47 @@
             </div>
           </div>
 
+          <!-- Rincian Mutu & Grading (Opsional / Detail) -->
+          <div style="background: rgba(255, 255, 255, 0.02); border: 1px solid var(--border-glass); border-radius: var(--radius-sm); padding: 12px 14px; margin-bottom: 16px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+              <strong style="font-size: 12.5px; color: var(--emerald-400);">🎖️ Rincian Mutu & Grading (Grade A, B, Afkir)</strong>
+              <span style="font-size: 10.5px; color: var(--text-muted);">Opsional</span>
+            </div>
+            
+            <div class="form-row" style="margin-bottom: 8px;">
+              <div class="form-group" style="margin-bottom: 0;">
+                <label style="font-size: 11px;">Grade A / Super (kg)</label>
+                <input type="number" step="any" id="grade_a_kg" placeholder="misal: 2000">
+              </div>
+              <div class="form-group" style="margin-bottom: 0;">
+                <label style="font-size: 11px;">Harga Grade A (Rp/kg)</label>
+                <input type="number" step="any" id="grade_a_price" placeholder="misal: 45000">
+              </div>
+            </div>
+
+            <div class="form-row" style="margin-bottom: 8px;">
+              <div class="form-group" style="margin-bottom: 0;">
+                <label style="font-size: 11px;">Grade B / Standar (kg)</label>
+                <input type="number" step="any" id="grade_b_kg" placeholder="misal: 980">
+              </div>
+              <div class="form-group" style="margin-bottom: 0;">
+                <label style="font-size: 11px;">Harga Grade B (Rp/kg)</label>
+                <input type="number" step="any" id="grade_b_price" placeholder="misal: 36000">
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div class="form-group" style="margin-bottom: 0;">
+                <label style="font-size: 11px;">Grade C / Afkir (kg)</label>
+                <input type="number" step="any" id="grade_c_kg" placeholder="misal: 270">
+              </div>
+              <div class="form-group" style="margin-bottom: 0;">
+                <label style="font-size: 11px;">Harga Afkir (Rp/kg)</label>
+                <input type="number" step="any" id="grade_c_price" placeholder="misal: 12000">
+              </div>
+            </div>
+          </div>
+
           <div class="form-group">
             <label>Kanal Penjualan / Pembeli</label>
             <input type="text" id="sales_channel" value="pasar_induk" placeholder="contoh: Pasar Induk, Supermarket, Tengkulak">
