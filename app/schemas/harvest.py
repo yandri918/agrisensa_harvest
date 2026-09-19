@@ -37,6 +37,7 @@ class PestDiseaseSchema(BaseModel):
 
 class HarvestCreateRequest(BaseModel):
     idempotency_key: Optional[str] = Field(None, description="Kunci pencegah duplikasi request")
+    user_id: Optional[str] = Field(None, description="Clerk User ID / Akun Pemilik")
     farm_id: str = Field(..., description="ID / kode kebun")
     farmer_id: str = Field(..., description="ID / kode petani")
     season_id: Optional[str] = Field(None, description="ID musim tanam")
@@ -100,6 +101,7 @@ class HarvestUpdateRequest(BaseModel):
 class HarvestRecordResponse(BaseModel):
     harvest_id: str
     idempotency_key: Optional[str] = None
+    user_id: Optional[str] = None
     farm_id: str
     farmer_id: str
     season_id: Optional[str] = None

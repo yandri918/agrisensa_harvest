@@ -22,7 +22,7 @@ DB_PATH = os.path.join(DB_DIR, "agrisensa_harvest.db")
 
 
 class DatabaseManager:
-    """Manajer Database Relasional Persisten (Real SQLite Database Engine dengan ACID Compliance)."""
+    """Manajer Database Relasional Persisten dengan Isolasi Pengguna Multi-Tenant & Dukungan Clerk."""
 
     def __init__(self, db_path: str = DB_PATH):
         self.db_path = db_path
@@ -36,14 +36,28 @@ class DatabaseManager:
         return conn
 
     def _init_tables(self):
-        """Membuat tabel skema database relasional jika belum ada."""
+        """Membuat tabel skema database relasional dan migrasi kolom user_id."""
         with self._get_connection() as conn:
             cursor = conn.cursor()
             
-            # 1. Tabel Utama Rekapitulasi Panen
+            # 1. Tabel Master Pengguna Terdaftar (Clerk Users)
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS users (
+                    user_id TEXT PRIMARY KEY,
+                    email TEXT NOT NULL,
+                    full_name TEXT NOT NULL,
+                    image_url TEXT,
+                    role TEXT DEFAULT 'farmer',
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                )
+            """)
+
+            # 2. Tabel Utama Rekapitulasi Panen
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS harvests (
                     harvest_id TEXT PRIMARY KEY,
+                    user_id TEXT NOT NULL DEFAULT 'USR-028',
                     idempotency_key TEXT UNIQUE,
                     farm_id TEXT NOT NULL,
                     farmer_id TEXT NOT NULL,
@@ -82,14 +96,22 @@ class DatabaseManager:
                 )
             """)
 
-            # 2. Indeks untuk Query & Filter Berkinerja Tinggi
+            # Migrasi: pastikan kolom user_id ada jika tabel sudah pernah dibuat sebelumnya
+            cursor.execute("PRAGMA table_info(harvests)")
+            columns = [row[1] for row in cursor.fetchall()]
+            if "user_id" not in columns:
+                cursor.execute("ALTER TABLE harvests ADD COLUMN user_id TEXT NOT NULL DEFAULT 'USR-028'")
+
+            # 3. Indeks Kinerja Tinggi
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_harvests_user_id ON harvests(user_id)")
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_harvests_commodity ON harvests(commodity)")
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_harvests_farm_id ON harvests(farm_id)")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_harvests_farmer_id ON harvests(farmer_id)")
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_harvests_harvest_date ON harvests(harvest_date)")
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_harvests_status ON harvests(status)")
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_harvests_idempotency ON harvests(idempotency_key)")
 
-            # 3. Tabel Konfigurasi Sistem & Webhook
+            # 4. Tabel Konfigurasi Sistem & Webhook
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS system_config (
                     key TEXT PRIMARY KEY,
@@ -101,69 +123,119 @@ class DatabaseManager:
             conn.commit()
 
     def _ensure_seed_data(self):
-        """Memastikan data awal terisi jika database masih kosong."""
+        """Memastikan data awal terisi untuk akun default demo jika database masih kosong."""
         with self._get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("SELECT COUNT(*) FROM harvests WHERE status != 'archived'")
             count = cursor.fetchone()[0]
             
             if count == 0:
-                sample_id = "h0000000-0000-0000-0000-000000000001"
-                sample_req = HarvestCreateRequest(
-                    idempotency_key="IDEMP-20260917-CABAI-001",
-                    farm_id="FARM-001",
-                    farmer_id="USR-028",
-                    season_id="SEASON-2026-01",
-                    commodity="Cabai Merah",
-                    variety="Lado F1",
-                    planting_date="2026-05-10",
-                    harvest_date="2026-09-17",
-                    harvest_sequence=3,
-                    land_area=0.5,
-                    land_area_unit="ha",
-                    harvest_quantity=3250,
-                    quantity_unit="kg",
-                    marketable_quantity=2980,
-                    damaged_quantity=270,
-                    selling_price_per_unit=42000,
-                    currency="IDR",
-                    production_cost=68500000,
-                    sales_channel="pasar_induk",
-                    damage_cause="Antraknosa pada sebagian buah",
-                    notes="Panen ketiga dengan mutu dominan grade A",
-                    location={
-                        "village": "Sumbang",
-                        "district": "Sumbang",
-                        "regency": "Banyumas",
-                        "province": "Jawa Tengah",
-                        "latitude": -7.343,
-                        "longitude": 109.244,
-                        "altitude_masl": 450.0,
-                    },
-                    quality_grades=[
-                        {"grade": "A", "quantity_kg": 1800, "price_per_kg": 45000},
-                        {"grade": "B", "quantity_kg": 850, "price_per_kg": 39000},
-                        {"grade": "C", "quantity_kg": 330, "price_per_kg": 30000},
-                    ],
-                    pest_disease=[
-                        {
-                            "name": "Antraknosa",
-                            "severity_percent": 8,
-                            "treatment": "Sanitasi dan fungisida sesuai SOP",
-                        }
-                    ],
-                    source=DataSourceEnum.API,
+                self.provision_user_initial_harvests(
+                    user_id="USR-028",
+                    farmer_name="Mandor Kebun Banyumas",
+                    email="mandor@agrisensa.ai"
                 )
-                self.insert_harvest(sample_req, custom_id=sample_id, initial_status=HarvestStatusEnum.APPROVED)
+
+    def upsert_user(self, user) -> bool:
+        """
+        Menyimpan atau memperbarui profil pengguna terdaftar (Clerk).
+        Jika akun ini baru pertama kali login, otomatis sediakan data starter personal.
+        """
+        user_id = user.user_id
+        email = user.email or "petani@agrisensa.ai"
+        full_name = user.full_name or "Petani Terdaftar"
+        image_url = user.image_url or ""
+        role = user.role or "farmer"
+        now_iso = datetime.utcnow().isoformat()
+
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT user_id FROM users WHERE user_id = ?", (user_id,))
+            existing = cursor.fetchone()
+
+            if not existing:
+                cursor.execute("""
+                    INSERT INTO users (user_id, email, full_name, image_url, role, created_at, updated_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                """, (user_id, email, full_name, image_url, role, now_iso, now_iso))
+                conn.commit()
+                # Provision sample harvest records for this specific registered account
+                self.provision_user_initial_harvests(user_id=user_id, farmer_name=full_name, email=email)
+                return True
+            else:
+                cursor.execute("""
+                    UPDATE users SET email = ?, full_name = ?, image_url = ?, role = ?, updated_at = ?
+                    WHERE user_id = ?
+                """, (email, full_name, image_url, role, now_iso, user_id))
+                conn.commit()
+                return False
+
+    def provision_user_initial_harvests(self, user_id: str, farmer_name: str = "Petani", email: str = ""):
+        """Menyediakan dataset panen awal siap pakai untuk akun pengguna baru."""
+        sample_id = f"h-init-{user_id[-8:] if len(user_id) >= 8 else user_id}-001"
+        sample_req = HarvestCreateRequest(
+            idempotency_key=f"IDEMP-INIT-{user_id}-001",
+            user_id=user_id,
+            farm_id=f"FARM-{user_id[-4:].upper() if len(user_id) >= 4 else '001'}",
+            farmer_id=user_id,
+            season_id="SEASON-2026-01",
+            commodity="Cabai Merah",
+            variety="Lado F1",
+            planting_date="2026-05-10",
+            harvest_date="2026-09-17",
+            harvest_sequence=1,
+            land_area=0.5,
+            land_area_unit="ha",
+            harvest_quantity=3250,
+            quantity_unit="kg",
+            marketable_quantity=2980,
+            damaged_quantity=270,
+            selling_price_per_unit=42000,
+            currency="IDR",
+            production_cost=68500000,
+            sales_channel="pasar_induk",
+            damage_cause="Antraknosa pada sebagian buah",
+            notes=f"Data panen inisialisasi akun terdaftar: {farmer_name} ({email})",
+            location={
+                "village": "Sumbang",
+                "district": "Sumbang",
+                "regency": "Banyumas",
+                "province": "Jawa Tengah",
+                "latitude": -7.343,
+                "longitude": 109.244,
+                "altitude_masl": 450.0,
+            },
+            quality_grades=[
+                {"grade": "A", "quantity_kg": 1800, "price_per_kg": 45000},
+                {"grade": "B", "quantity_kg": 850, "price_per_kg": 39000},
+                {"grade": "C", "quantity_kg": 330, "price_per_kg": 30000},
+            ],
+            pest_disease=[
+                {
+                    "name": "Antraknosa",
+                    "severity_percent": 8,
+                    "treatment": "Sanitasi dan fungisida sesuai SOP",
+                }
+            ],
+            source=DataSourceEnum.API,
+        )
+        try:
+            self.insert_harvest(sample_req, custom_id=sample_id, initial_status=HarvestStatusEnum.APPROVED, user_id=user_id)
+        except Exception:
+            pass
 
     def _row_to_harvest_response(self, row: sqlite3.Row) -> HarvestRecordResponse:
         """Mengonversi row SQLite ke objek Pydantic HarvestRecordResponse."""
         kpi_dict = json.loads(row["kpi_summary_json"]) if row["kpi_summary_json"] else None
         kpi_obj = HarvestCalculatedKPIs(**kpi_dict) if kpi_dict else None
 
+        row_keys = row.keys()
+        user_id_val = row["user_id"] if "user_id" in row_keys else None
+
         return HarvestRecordResponse(
             harvest_id=row["harvest_id"],
             idempotency_key=row["idempotency_key"],
+            user_id=user_id_val,
             farm_id=row["farm_id"],
             farmer_id=row["farmer_id"],
             season_id=row["season_id"],
@@ -200,19 +272,26 @@ class DatabaseManager:
             updated_at=datetime.fromisoformat(row["updated_at"]),
         )
 
-    def get_harvest_by_id(self, harvest_id: str) -> Optional[HarvestRecordResponse]:
+    def get_harvest_by_id(self, harvest_id: str, user_id: Optional[str] = None) -> Optional[HarvestRecordResponse]:
+        """Mengambil data panen berdasarkan ID, opsional dibatasi user_id untuk isolasi keamanan."""
         with self._get_connection() as conn:
             cursor = conn.cursor()
-            cursor.execute("SELECT * FROM harvests WHERE harvest_id = ?", (harvest_id,))
+            if user_id:
+                cursor.execute("SELECT * FROM harvests WHERE harvest_id = ? AND (user_id = ? OR user_id = 'USR-028')", (harvest_id, user_id))
+            else:
+                cursor.execute("SELECT * FROM harvests WHERE harvest_id = ?", (harvest_id,))
             row = cursor.fetchone()
             if not row:
                 return None
             return self._row_to_harvest_response(row)
 
-    def get_harvest_by_idempotency(self, key: str) -> Optional[HarvestRecordResponse]:
+    def get_harvest_by_idempotency(self, key: str, user_id: Optional[str] = None) -> Optional[HarvestRecordResponse]:
         with self._get_connection() as conn:
             cursor = conn.cursor()
-            cursor.execute("SELECT * FROM harvests WHERE idempotency_key = ?", (key,))
+            if user_id:
+                cursor.execute("SELECT * FROM harvests WHERE idempotency_key = ? AND user_id = ?", (key, user_id))
+            else:
+                cursor.execute("SELECT * FROM harvests WHERE idempotency_key = ?", (key,))
             row = cursor.fetchone()
             if not row:
                 return None
@@ -222,11 +301,14 @@ class DatabaseManager:
         self,
         payload: HarvestCreateRequest,
         custom_id: Optional[str] = None,
-        initial_status: HarvestStatusEnum = HarvestStatusEnum.VALIDATED
+        initial_status: HarvestStatusEnum = HarvestStatusEnum.VALIDATED,
+        user_id: Optional[str] = None
     ) -> Tuple[HarvestRecordResponse, bool]:
+        owner_id = user_id or payload.user_id or payload.farmer_id or "USR-028"
+
         # Cek Idempotency Key
         if payload.idempotency_key:
-            existing = self.get_harvest_by_idempotency(payload.idempotency_key)
+            existing = self.get_harvest_by_idempotency(payload.idempotency_key, user_id=owner_id)
             if existing:
                 return existing, False
 
@@ -281,19 +363,20 @@ class DatabaseManager:
             cursor = conn.cursor()
             cursor.execute("""
                 INSERT INTO harvests (
-                    harvest_id, idempotency_key, farm_id, farmer_id, season_id, commodity, variety,
+                    harvest_id, user_id, idempotency_key, farm_id, farmer_id, season_id, commodity, variety,
                     planting_date, harvest_date, harvest_sequence, land_area_ha, harvest_quantity_kg,
                     marketable_quantity_kg, damaged_quantity_kg, original_land_area, original_land_area_unit,
                     original_quantity, original_quantity_unit, selling_price_per_kg, currency, gross_revenue,
                     total_production_cost, net_profit, sales_channel, location_json, quality_grades_json,
                     cost_details_json, pest_disease_json, damage_cause, notes, photo_urls_json,
                     status, source, kpi_summary_json, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 harvest_id,
+                owner_id,
                 payload.idempotency_key,
                 payload.farm_id,
-                payload.farmer_id,
+                payload.farmer_id or owner_id,
                 payload.season_id,
                 payload.commodity,
                 payload.variety,
@@ -334,6 +417,7 @@ class DatabaseManager:
 
     def list_harvests(
         self,
+        user_id: Optional[str] = None,
         farm_id: Optional[str] = None,
         farmer_id: Optional[str] = None,
         commodity: Optional[str] = None,
@@ -343,8 +427,13 @@ class DatabaseManager:
         limit: int = 50,
         offset: int = 0
     ) -> Tuple[List[HarvestRecordResponse], int]:
+        """Mengambil rekapitulasi data panen terisolasi per akun pengguna."""
         query_conditions = ["status != 'archived'"]
         params = []
+
+        if user_id:
+            query_conditions.append("(user_id = ? OR (user_id = 'USR-028' AND NOT EXISTS (SELECT 1 FROM harvests WHERE user_id = ? AND status != 'archived')))")
+            params.extend([user_id, user_id])
 
         if farm_id:
             query_conditions.append("farm_id = ?")
@@ -384,8 +473,13 @@ class DatabaseManager:
 
         return items, total_count
 
-    def update_harvest(self, harvest_id: str, payload: HarvestUpdateRequest) -> Optional[HarvestRecordResponse]:
-        record = self.get_harvest_by_id(harvest_id)
+    def update_harvest(
+        self,
+        harvest_id: str,
+        payload: HarvestUpdateRequest,
+        user_id: Optional[str] = None
+    ) -> Optional[HarvestRecordResponse]:
+        record = self.get_harvest_by_id(harvest_id, user_id=user_id)
         if not record:
             return None
 
@@ -457,8 +551,8 @@ class DatabaseManager:
 
         return updated_record
 
-    def delete_harvest(self, harvest_id: str) -> bool:
-        record = self.get_harvest_by_id(harvest_id)
+    def delete_harvest(self, harvest_id: str, user_id: Optional[str] = None) -> bool:
+        record = self.get_harvest_by_id(harvest_id, user_id=user_id)
         if not record:
             return False
 
@@ -472,25 +566,60 @@ class DatabaseManager:
             conn.commit()
         return True
 
+    def get_user_stats(self, user_id: str) -> Dict[str, Any]:
+        """Mengambil data ringkas akun dan statistik panen milik pengguna."""
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM users WHERE user_id = ?", (user_id,))
+            user_row = cursor.fetchone()
+
+            cursor.execute("""
+                SELECT 
+                    COUNT(*) as count,
+                    COALESCE(SUM(harvest_quantity_kg), 0) as total_kg,
+                    COALESCE(SUM(gross_revenue), 0) as total_revenue,
+                    COALESCE(SUM(net_profit), 0) as total_profit
+                FROM harvests
+                WHERE user_id = ? AND status != 'archived'
+            """, (user_id,))
+            stat_row = cursor.fetchone()
+
+            return {
+                "user": dict(user_row) if user_row else None,
+                "stats": {
+                    "total_harvests": stat_row["count"] if stat_row else 0,
+                    "total_quantity_kg": stat_row["total_kg"] if stat_row else 0.0,
+                    "total_gross_revenue": stat_row["total_revenue"] if stat_row else 0.0,
+                    "total_net_profit": stat_row["total_profit"] if stat_row else 0.0,
+                }
+            }
+
     # -------------------------------------------------------------
     # Notification & Webhook Configuration Storage
     # -------------------------------------------------------------
-    def get_notification_config(self) -> Dict[str, Any]:
+    def get_notification_config(self, user_id: Optional[str] = None) -> Dict[str, Any]:
+        config_key = f"{user_id}:notification_config" if user_id else "notification_config"
         with self._get_connection() as conn:
             cursor = conn.cursor()
-            cursor.execute("SELECT value_json FROM system_config WHERE key = 'notification_config'")
+            cursor.execute("SELECT value_json FROM system_config WHERE key = ?", (config_key,))
             row = cursor.fetchone()
+            if not row and user_id:
+                # fallback ke default general
+                cursor.execute("SELECT value_json FROM system_config WHERE key = 'notification_config'")
+                row = cursor.fetchone()
+
             if row:
                 return json.loads(row[0])
             return {"webhook_url": "", "is_enabled": True}
 
-    def save_notification_config(self, config: Dict[str, Any]):
+    def save_notification_config(self, config: Dict[str, Any], user_id: Optional[str] = None):
+        config_key = f"{user_id}:notification_config" if user_id else "notification_config"
         with self._get_connection() as conn:
             cursor = conn.cursor()
             now_iso = datetime.utcnow().isoformat()
             cursor.execute(
                 "INSERT OR REPLACE INTO system_config (key, value_json, updated_at) VALUES (?, ?, ?)",
-                ("notification_config", json.dumps(config), now_iso)
+                (config_key, json.dumps(config), now_iso)
             )
             conn.commit()
 

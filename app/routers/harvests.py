@@ -2,7 +2,7 @@ import csv
 import io
 from datetime import datetime
 from typing import Optional, List
-from fastapi import APIRouter, HTTPException, Query, status, BackgroundTasks
+from fastapi import APIRouter, HTTPException, Query, status, BackgroundTasks, Depends
 from fastapi.responses import Response, HTMLResponse
 
 from app.schemas.common import ApiResponse, PaginatedResponse, HarvestStatusEnum
@@ -14,6 +14,7 @@ from app.schemas.harvest import (
 from app.services.harvest_service import harvest_service
 from app.services.report_service import report_service
 from app.services.notification_service import notification_service
+from app.services.clerk_auth import get_current_user, AuthUser
 
 router = APIRouter(prefix="/harvests", tags=["Harvest Ingest & Management"])
 
@@ -23,11 +24,20 @@ router = APIRouter(prefix="/harvests", tags=["Harvest Ingest & Management"])
     response_model=ApiResponse[HarvestRecordResponse],
     status_code=status.HTTP_201_CREATED,
     summary="Mencatat data hasil panen baru (Data Ingest)",
-    description="Menerima, memvalidasi, menormalisasi unit, menghitung KPI otomatis, dan menyimpan data hasil panen."
+    description="Menerima, memvalidasi, menormalisasi unit, menghitung KPI otomatis, dan menyimpan data hasil panen terikat pada akun terdaftar."
 )
-def create_harvest_record(payload: HarvestCreateRequest, background_tasks: BackgroundTasks):
+def create_harvest_record(
+    payload: HarvestCreateRequest,
+    background_tasks: BackgroundTasks,
+    current_user: AuthUser = Depends(get_current_user)
+):
     try:
-        record, is_new = harvest_service.create_harvest(payload)
+        # Hubungkan harvest record ke akun Clerk yang aktif
+        payload.user_id = current_user.user_id
+        if not payload.farmer_id:
+            payload.farmer_id = current_user.user_id
+
+        record, is_new = harvest_service.create_harvest(payload, user_id=current_user.user_id)
         
         # Trigger background webhook / WhatsApp notification if new record
         if is_new:
@@ -57,8 +67,10 @@ def export_harvests_csv(
     status: Optional[HarvestStatusEnum] = Query(None, description="Filter status validasi"),
     start_date: Optional[str] = Query(None, description="Tanggal panen mulai (YYYY-MM-DD)"),
     end_date: Optional[str] = Query(None, description="Tanggal panen akhir (YYYY-MM-DD)"),
+    current_user: AuthUser = Depends(get_current_user)
 ):
     items, _ = harvest_service.list_harvests(
+        user_id=current_user.user_id,
         farm_id=farm_id,
         farmer_id=farmer_id,
         commodity=commodity,
@@ -75,6 +87,7 @@ def export_harvests_csv(
     # Header kolom Excel / CSV
     writer.writerow([
         "ID Panen",
+        "Akun Pengguna",
         "Komoditas",
         "Varietas",
         "ID Kebun",
@@ -105,6 +118,7 @@ def export_harvests_csv(
 
         writer.writerow([
             r.harvest_id,
+            current_user.email,
             r.commodity,
             r.variety or "-",
             r.farm_id,
@@ -143,7 +157,7 @@ def export_harvests_csv(
 @router.get(
     "",
     response_model=ApiResponse[PaginatedResponse[HarvestRecordResponse]],
-    summary="Mencari dan memfilter daftar hasil panen",
+    summary="Mencari dan memfilter daftar hasil panen akun terdaftar",
 )
 def list_harvest_records(
     farm_id: Optional[str] = Query(None, description="Filter berdasarkan ID kebun"),
@@ -154,9 +168,11 @@ def list_harvest_records(
     end_date: Optional[str] = Query(None, description="Tanggal panen akhir (YYYY-MM-DD)"),
     page: int = Query(1, ge=1, description="Nomor halaman"),
     page_size: int = Query(20, ge=1, le=100, description="Jumlah data per halaman"),
+    current_user: AuthUser = Depends(get_current_user)
 ):
     offset = (page - 1) * page_size
     items, total = harvest_service.list_harvests(
+        user_id=current_user.user_id,
         farm_id=farm_id,
         farmer_id=farmer_id,
         commodity=commodity,
@@ -189,12 +205,15 @@ def list_harvest_records(
     response_model=ApiResponse[HarvestRecordResponse],
     summary="Mengambil detail hasil panen dan KPI",
 )
-def get_harvest_detail(harvest_id: str):
-    record = harvest_service.get_harvest(harvest_id)
+def get_harvest_detail(
+    harvest_id: str,
+    current_user: AuthUser = Depends(get_current_user)
+):
+    record = harvest_service.get_harvest(harvest_id, user_id=current_user.user_id)
     if not record:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Record panen dengan ID '{harvest_id}' tidak ditemukan."
+            detail=f"Record panen dengan ID '{harvest_id}' tidak ditemukan pada akun Anda."
         )
     return ApiResponse(
         success=True,
@@ -208,12 +227,15 @@ def get_harvest_detail(harvest_id: str):
     response_class=HTMLResponse,
     summary="Menghasilkan halaman laporan resmi panen siap cetak / simpan ke PDF",
 )
-def get_harvest_printable_report(harvest_id: str):
-    record = harvest_service.get_harvest(harvest_id)
+def get_harvest_printable_report(
+    harvest_id: str,
+    current_user: AuthUser = Depends(get_current_user)
+):
+    record = harvest_service.get_harvest(harvest_id, user_id=current_user.user_id)
     if not record:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Record panen dengan ID '{harvest_id}' tidak ditemukan."
+            detail=f"Record panen dengan ID '{harvest_id}' tidak ditemukan pada akun Anda."
         )
     html_content = report_service.generate_printable_html(record)
     return HTMLResponse(content=html_content)
@@ -224,12 +246,16 @@ def get_harvest_printable_report(harvest_id: str):
     response_model=ApiResponse[HarvestRecordResponse],
     summary="Memperbarui sebagian data hasil panen",
 )
-def update_harvest_record(harvest_id: str, payload: HarvestUpdateRequest):
-    updated = harvest_service.update_harvest(harvest_id, payload)
+def update_harvest_record(
+    harvest_id: str,
+    payload: HarvestUpdateRequest,
+    current_user: AuthUser = Depends(get_current_user)
+):
+    updated = harvest_service.update_harvest(harvest_id, payload, user_id=current_user.user_id)
     if not updated:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Record panen dengan ID '{harvest_id}' tidak ditemukan."
+            detail=f"Record panen dengan ID '{harvest_id}' tidak ditemukan pada akun Anda."
         )
     return ApiResponse(
         success=True,
@@ -243,12 +269,15 @@ def update_harvest_record(harvest_id: str, payload: HarvestUpdateRequest):
     response_model=ApiResponse[dict],
     summary="Soft delete record panen (Archive)",
 )
-def delete_harvest_record(harvest_id: str):
-    success = harvest_service.delete_harvest(harvest_id)
+def delete_harvest_record(
+    harvest_id: str,
+    current_user: AuthUser = Depends(get_current_user)
+):
+    success = harvest_service.delete_harvest(harvest_id, user_id=current_user.user_id)
     if not success:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Record panen dengan ID '{harvest_id}' tidak ditemukan."
+            detail=f"Record panen dengan ID '{harvest_id}' tidak ditemukan pada akun Anda."
         )
     return ApiResponse(
         success=True,
@@ -262,16 +291,18 @@ def delete_harvest_record(harvest_id: str):
     response_model=ApiResponse[dict],
     summary="Memicu sinkronisasi data panen ke Google Workspace / Google Drive / MCP",
 )
-def trigger_harvest_sync(harvest_id: str):
-    record = harvest_service.get_harvest(harvest_id)
+def trigger_harvest_sync(
+    harvest_id: str,
+    current_user: AuthUser = Depends(get_current_user)
+):
+    record = harvest_service.get_harvest(harvest_id, user_id=current_user.user_id)
     if not record:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Record panen dengan ID '{harvest_id}' tidak ditemukan."
+            detail=f"Record panen dengan ID '{harvest_id}' tidak ditemukan pada akun Anda."
         )
     return ApiResponse(
         success=True,
         message="Sinkronisasi panen berhasil dijadwalkan.",
         data={"harvest_id": harvest_id, "status": "queued"}
     )
-

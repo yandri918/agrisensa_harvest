@@ -1,8 +1,10 @@
 from typing import Optional, List, Dict
-from fastapi import APIRouter, HTTPException, Query, status
+from fastapi import APIRouter, HTTPException, Query, status, Depends
 from app.schemas.common import ApiResponse
 from app.schemas.kpi import HarvestCalculatedKPIs
 from app.services.harvest_service import harvest_service
+from app.services.ai_insight_service import ai_insight_service
+from app.services.clerk_auth import get_current_user, AuthUser
 
 router = APIRouter(prefix="/analytics", tags=["Analytics & KPIs"])
 
@@ -12,12 +14,15 @@ router = APIRouter(prefix="/analytics", tags=["Analytics & KPIs"])
     response_model=ApiResponse[HarvestCalculatedKPIs],
     summary="Mengambil kalkulasi KPI lengkap dari suatu panen",
 )
-def get_harvest_kpis(harvest_id: str):
-    record = harvest_service.get_harvest(harvest_id)
+def get_harvest_kpis(
+    harvest_id: str,
+    current_user: AuthUser = Depends(get_current_user)
+):
+    record = harvest_service.get_harvest(harvest_id, user_id=current_user.user_id)
     if not record or not record.kpi_summary:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"KPI untuk panen ID '{harvest_id}' tidak ditemukan."
+            detail=f"KPI untuk panen ID '{harvest_id}' tidak ditemukan pada akun Anda."
         )
     return ApiResponse(
         success=True,
@@ -29,15 +34,17 @@ def get_harvest_kpis(harvest_id: str):
 @router.get(
     "/summary",
     response_model=ApiResponse[dict],
-    summary="Mengambil ringkasan agregat analitik (total panen, rata-rata produktivitas, total pendapatan)",
+    summary="Mengambil ringkasan agregat analitik untuk akun pengguna aktif",
 )
 def get_analytics_summary(
     commodity: Optional[str] = Query(None, description="Filter komoditas"),
     farm_id: Optional[str] = Query(None, description="Filter kebun"),
     start_date: Optional[str] = Query(None, description="Tanggal panen awal"),
     end_date: Optional[str] = Query(None, description="Tanggal panen akhir"),
+    current_user: AuthUser = Depends(get_current_user)
 ):
     records, total_count = harvest_service.list_harvests(
+        user_id=current_user.user_id,
         commodity=commodity,
         farm_id=farm_id,
         start_date=start_date,
@@ -48,7 +55,7 @@ def get_analytics_summary(
     if not records:
         return ApiResponse(
             success=True,
-            message="Belum ada data panen yang sesuai filter.",
+            message="Belum ada data panen yang sesuai filter pada akun Anda.",
             data={
                 "total_records": 0,
                 "total_harvest_kg": 0,
@@ -81,6 +88,7 @@ def get_analytics_summary(
     )
 
     summary_data = {
+        "user_id": current_user.user_id,
         "total_records": len(records),
         "total_harvest_kg": round(total_harvest_kg, 2),
         "total_gross_revenue_idr": round(total_revenue, 2),
@@ -98,20 +106,20 @@ def get_analytics_summary(
     )
 
 
-from app.services.ai_insight_service import ai_insight_service
-
-
 @router.get(
     "/ai-insights/{harvest_id}",
     response_model=ApiResponse[dict],
     summary="Mengambil evaluasi benchmark AI dan rekomendasi agronomi untuk record panen tertentu",
 )
-def get_harvest_ai_insights(harvest_id: str):
-    record = harvest_service.get_harvest(harvest_id)
+def get_harvest_ai_insights(
+    harvest_id: str,
+    current_user: AuthUser = Depends(get_current_user)
+):
+    record = harvest_service.get_harvest(harvest_id, user_id=current_user.user_id)
     if not record:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Record panen dengan ID '{harvest_id}' tidak ditemukan."
+            detail=f"Record panen dengan ID '{harvest_id}' tidak ditemukan pada akun Anda."
         )
     insights = ai_insight_service.evaluate_harvest_record(record)
     return ApiResponse(
@@ -131,8 +139,10 @@ def get_summary_ai_insights(
     farm_id: Optional[str] = Query(None, description="Filter kebun"),
     start_date: Optional[str] = Query(None, description="Tanggal panen awal"),
     end_date: Optional[str] = Query(None, description="Tanggal panen akhir"),
+    current_user: AuthUser = Depends(get_current_user)
 ):
     records, _ = harvest_service.list_harvests(
+        user_id=current_user.user_id,
         commodity=commodity,
         farm_id=farm_id,
         start_date=start_date,
@@ -143,7 +153,7 @@ def get_summary_ai_insights(
     if not records:
         return ApiResponse(
             success=True,
-            message="Belum ada data untuk evaluasi AI.",
+            message="Belum ada data untuk evaluasi AI pada akun Anda.",
             data={"insights": ["Belum ada data panen yang tercatat."]}
         )
 
@@ -153,4 +163,3 @@ def get_summary_ai_insights(
         message="Evaluasi AI agregat berhasil dihitung.",
         data=insights_data
     )
-

@@ -45,6 +45,37 @@ document.addEventListener('DOMContentLoaded', () => {
   initClerkAuth();
 });
 
+// Authenticated API Fetch wrapper that includes Clerk tokens & user identity
+async function getAuthHeaders() {
+  const headers = { 'Content-Type': 'application/json' };
+  if (window.Clerk && window.Clerk.session) {
+    try {
+      const token = await window.Clerk.session.getToken();
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+    } catch (e) {
+      console.warn('Clerk session token notice:', e);
+    }
+  }
+  if (window.Clerk && window.Clerk.user) {
+    const user = window.Clerk.user;
+    headers['X-User-Id'] = user.id;
+    headers['X-User-Email'] = user.primaryEmailAddress ? user.primaryEmailAddress.emailAddress : '';
+    headers['X-User-Name'] = user.fullName || user.firstName || 'Petani Terdaftar';
+  }
+  return headers;
+}
+
+async function apiFetch(url, options = {}) {
+  const authHeaders = await getAuthHeaders();
+  const combinedHeaders = { ...authHeaders, ...(options.headers || {}) };
+  if (options.body instanceof FormData) {
+    delete combinedHeaders['Content-Type'];
+  }
+  return fetch(url, { ...options, headers: combinedHeaders });
+}
+
 // =====================================================================
 // CLERK AUTHENTICATION (EMAIL LOGIN)
 // =====================================================================
@@ -92,11 +123,11 @@ async function initClerkAuth() {
           }
         });
         clerkLoaded = true;
-        handleClerkAuthState();
+        await handleClerkAuthState();
 
         // Listen for session/user updates
-        window.Clerk.addListener(() => {
-          handleClerkAuthState();
+        window.Clerk.addListener(async () => {
+          await handleClerkAuthState();
         });
       } catch (err) {
         console.warn('Clerk initialization notice:', err);
@@ -114,7 +145,7 @@ async function initClerkAuth() {
   }, 4000);
 }
 
-function handleClerkAuthState() {
+async function handleClerkAuthState() {
   if (!window.Clerk) return;
 
   const authModal = document.getElementById('clerkAuthModal');
@@ -123,25 +154,41 @@ function handleClerkAuthState() {
   const userEmailSpan = document.getElementById('clerkUserEmail');
   const userBtnContainer = document.getElementById('clerkUserButton');
   const signInContainer = document.getElementById('clerkSignInContainer');
+  const farmerIdInput = document.getElementById('farmer_id');
 
   if (window.Clerk.user) {
     currentUser = window.Clerk.user;
     const email = currentUser.primaryEmailAddress ? currentUser.primaryEmailAddress.emailAddress : (currentUser.username || 'Pengguna');
+    const name = currentUser.fullName || currentUser.firstName || email.split('@')[0];
     
     if (userEmailSpan) userEmailSpan.textContent = email;
     if (userPill) userPill.style.display = 'flex';
     if (signInBtn) signInBtn.style.display = 'none';
     if (authModal) authModal.style.display = 'none';
 
+    // Auto fill default farmer ID in harvest creation form
+    if (farmerIdInput) {
+      farmerIdInput.value = currentUser.id;
+    }
+
     // Mount Clerk user profile button
     if (userBtnContainer) {
       userBtnContainer.innerHTML = '';
       window.Clerk.mountUserButton(userBtnContainer);
     }
+
+    // Sync account to database & refresh isolated dashboard
+    try {
+      await apiFetch(`${API_BASE}/auth/sync`, { method: 'POST' });
+    } catch (e) {
+      console.warn('User sync notice:', e);
+    }
+    fetchDashboardData(currentFilters);
   } else {
     currentUser = null;
     if (userPill) userPill.style.display = 'none';
     if (signInBtn) signInBtn.style.display = 'inline-flex';
+    if (farmerIdInput) farmerIdInput.value = 'USR-028';
     
     // Mount Sign In widget inside auth modal
     if (signInContainer && window.Clerk.mountSignIn) {
@@ -348,7 +395,7 @@ async function fetchDashboardData(filterParams = {}) {
     const queryString = params.toString() ? `?${params.toString()}` : '';
 
     // 1. Fetch records
-    const resRecords = await fetch(`${API_BASE}/harvests${queryString}`);
+    const resRecords = await apiFetch(`${API_BASE}/harvests${queryString}`);
     const dataRecords = await resRecords.json();
     
     if (dataRecords.success) {
@@ -362,7 +409,7 @@ async function fetchDashboardData(filterParams = {}) {
     }
 
     // 2. Fetch summary KPIs
-    const resSummary = await fetch(`${API_BASE}/analytics/summary${queryString}`);
+    const resSummary = await apiFetch(`${API_BASE}/analytics/summary${queryString}`);
     const dataSummary = await resSummary.json();
     if (dataSummary.success) {
       updateKpiCards(dataSummary.data);
@@ -395,7 +442,7 @@ async function fetchAIInsights(filterParams = {}) {
     if (filterParams.endDate) params.append('end_date', filterParams.endDate);
     const queryString = params.toString() ? `?${params.toString()}` : '';
 
-    const res = await fetch(`${API_BASE}/analytics/ai-insights${queryString}`);
+    const res = await apiFetch(`${API_BASE}/analytics/ai-insights${queryString}`);
     const result = await res.json();
 
     if (result.success && result.data) {
@@ -563,7 +610,7 @@ function renderTable(records) {
 async function updateHarvestStatus(harvestId, newStatus) {
   try {
     showToast(`⏳ Memperbarui status panen menjadi "${newStatus.toUpperCase()}"...`, 'success');
-    const res = await fetch(`${API_BASE}/harvests/${harvestId}`, {
+    const res = await apiFetch(`${API_BASE}/harvests/${harvestId}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ status: newStatus })
@@ -924,7 +971,7 @@ async function syncOfflineQueue() {
 
   for (const item of queue) {
     try {
-      const res = await fetch(`${API_BASE}/harvests`, {
+      const res = await apiFetch(`${API_BASE}/harvests`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(item)
@@ -988,7 +1035,7 @@ async function handleHarvestSubmit(e) {
   }
 
   try {
-    const res = await fetch(`${API_BASE}/harvests`, {
+    const res = await apiFetch(`${API_BASE}/harvests`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
@@ -1111,7 +1158,7 @@ function closeModal() {
 async function openWebhookModal() {
   document.getElementById('webhookModal').classList.add('active');
   try {
-    const res = await fetch(`${API_BASE}/config/notifications`);
+    const res = await apiFetch(`${API_BASE}/config/notifications`);
     const data = await res.json();
     if (data.success && data.data) {
       document.getElementById('webhookUrlInput').value = data.data.raw_webhook_url || '';
@@ -1132,7 +1179,7 @@ async function handleSaveWebhookConfig(e) {
   const isEnabled = document.getElementById('webhookEnabledToggle').checked;
 
   try {
-    const res = await fetch(`${API_BASE}/config/notifications`, {
+    const res = await apiFetch(`${API_BASE}/config/notifications`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ webhook_url: webhookUrl, is_enabled: isEnabled })
@@ -1159,7 +1206,7 @@ async function handleTestWebhook() {
   showToast('⏳ Mengirim pesan uji coba ke webhook...', 'success');
 
   try {
-    const res = await fetch(`${API_BASE}/config/notifications/test`, {
+    const res = await apiFetch(`${API_BASE}/config/notifications/test`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ webhook_url: webhookUrl })

@@ -221,61 +221,61 @@ class NotificationConfigRequest(BaseModel):
     telegram_chat_id: Optional[str] = Field(None, description="Chat ID Telegram")
 
 
+from app.services.clerk_auth import get_current_user, AuthUser
+from fastapi import Depends
+
+
 @router.get("/notifications", response_model=ApiResponse[dict])
-def get_notification_config():
+def get_notification_config(current_user: AuthUser = Depends(get_current_user)):
     """Mengambil konfigurasi notifikasi saat ini."""
+    from app.services.db import db_manager
+    user_conf = db_manager.get_notification_config(user_id=current_user.user_id)
+    webhook_val = user_conf.get("webhook_url") or notification_service.webhook_url
+
     masked_url = None
-    if notification_service.webhook_url:
-        u = notification_service.webhook_url
-        masked_url = u[:25] + "..." + u[-8:] if len(u) > 35 else u
+    if webhook_val:
+        masked_url = webhook_val[:25] + "..." + webhook_val[-8:] if len(webhook_val) > 35 else webhook_val
 
     return ApiResponse(
         success=True,
         message="Konfigurasi notifikasi berhasil diambil.",
         data={
-            "is_enabled": notification_service.is_enabled,
+            "is_enabled": user_conf.get("is_enabled", notification_service.is_enabled),
             "webhook_url": masked_url,
-            "raw_webhook_url": notification_service.webhook_url,
-            "has_telegram": bool(notification_service.telegram_token and notification_service.telegram_chat_id)
+            "raw_webhook_url": webhook_val,
+            "has_telegram": bool(user_conf.get("telegram_token") or (notification_service.telegram_token and notification_service.telegram_chat_id))
         }
     )
 
 
 @router.post("/notifications", response_model=ApiResponse[dict])
-def save_notification_config(payload: NotificationConfigRequest):
-    """Menyimpan konfigurasi URL Webhook / WhatsApp ke database."""
+def save_notification_config(
+    payload: NotificationConfigRequest,
+    current_user: AuthUser = Depends(get_current_user)
+):
+    """Menyimpan konfigurasi URL Webhook / WhatsApp ke database per akun terdaftar."""
     from app.services.db import db_manager
 
-    if payload.is_enabled is not None:
-        notification_service.is_enabled = payload.is_enabled
+    is_enabled = payload.is_enabled if payload.is_enabled is not None else notification_service.is_enabled
+    webhook_url = payload.webhook_url.strip() if payload.webhook_url is not None else notification_service.webhook_url
+    telegram_token = payload.telegram_bot_token.strip() if payload.telegram_bot_token is not None else notification_service.telegram_token
+    telegram_chat_id = payload.telegram_chat_id.strip() if payload.telegram_chat_id is not None else notification_service.telegram_chat_id
 
-    if payload.webhook_url is not None:
-        notification_service.webhook_url = payload.webhook_url.strip()
-        settings.WEBHOOK_URL = payload.webhook_url.strip()
-
-    if payload.telegram_bot_token is not None:
-        notification_service.telegram_token = payload.telegram_bot_token.strip()
-        settings.TELEGRAM_BOT_TOKEN = payload.telegram_bot_token.strip()
-
-    if payload.telegram_chat_id is not None:
-        notification_service.telegram_chat_id = payload.telegram_chat_id.strip()
-        settings.TELEGRAM_CHAT_ID = payload.telegram_chat_id.strip()
-
-    # Persist to real database
+    # Persist to real database scoped to this user
     db_manager.save_notification_config({
-        "is_enabled": notification_service.is_enabled,
-        "webhook_url": notification_service.webhook_url,
-        "telegram_token": notification_service.telegram_token,
-        "telegram_chat_id": notification_service.telegram_chat_id
-    })
+        "is_enabled": is_enabled,
+        "webhook_url": webhook_url,
+        "telegram_token": telegram_token,
+        "telegram_chat_id": telegram_chat_id
+    }, user_id=current_user.user_id)
 
     return ApiResponse(
         success=True,
-        message="Konfigurasi notifikasi WhatsApp / Webhook berhasil disimpan secara permanen.",
+        message="Konfigurasi notifikasi WhatsApp / Webhook berhasil disimpan secara permanen pada akun Anda.",
         data={
-            "is_enabled": notification_service.is_enabled,
-            "webhook_url": notification_service.webhook_url,
-            "status": "active" if notification_service.is_enabled else "disabled"
+            "is_enabled": is_enabled,
+            "webhook_url": webhook_url,
+            "status": "active" if is_enabled else "disabled"
         }
     )
 
