@@ -119,9 +119,12 @@ const CLERK_APPEARANCE = {
   }
 };
 
-let currentAuthTab = 'signin';
-
 async function initClerkAuth() {
+  const authGate = document.getElementById('authGateScreen');
+  const mainApp = document.getElementById('mainDashboardApp');
+  if (mainApp) mainApp.style.display = 'none';
+  if (authGate) authGate.style.display = 'flex';
+
   const clerkSignInBtn = document.getElementById('clerkSignInBtn');
   const tabSignIn = document.getElementById('authTabSignInBtn');
   const tabSignUp = document.getElementById('authTabSignUpBtn');
@@ -140,32 +143,32 @@ async function initClerkAuth() {
   }
 
   // Poll for Clerk global object if loaded via CDN
+  let attempts = 0;
   const checkClerkInterval = setInterval(async () => {
+    attempts++;
     if (window.Clerk) {
       clearInterval(checkClerkInterval);
       try {
-        await window.Clerk.load({ appearance: CLERK_APPEARANCE });
+        if (!window.Clerk.loaded) {
+          await window.Clerk.load({ appearance: CLERK_APPEARANCE });
+        }
         clerkLoaded = true;
         await handleClerkAuthState();
 
         // Listen for session/user updates (login / logout)
-        window.Clerk.addListener(async () => {
+        window.Clerk.addListener(async (payload) => {
+          console.log('Clerk session listener updated:', payload);
           await handleClerkAuthState();
         });
       } catch (err) {
         console.warn('Clerk initialization notice:', err);
         showFallbackAuth();
       }
-    }
-  }, 100);
-
-  // Safety timeout: if Clerk CDN not reached within 5 seconds
-  setTimeout(() => {
-    if (!clerkLoaded && !window.Clerk) {
+    } else if (attempts > 50) {
       clearInterval(checkClerkInterval);
       showFallbackAuth();
     }
-  }, 5000);
+  }, 100);
 }
 
 function switchAuthTab(tab) {
@@ -185,9 +188,15 @@ function switchAuthTab(tab) {
       tabSignUp.style.color = '#94a3b8';
       tabSignUp.style.border = 'none';
     }
-    if (container && window.Clerk && window.Clerk.mountSignIn) {
+    if (container && window.Clerk) {
+      try {
+        if (window.Clerk.unmountSignIn) window.Clerk.unmountSignIn(container);
+        if (window.Clerk.unmountSignUp) window.Clerk.unmountSignUp(container);
+      } catch (e) {}
       container.innerHTML = '';
-      window.Clerk.mountSignIn(container, { routing: 'hash', appearance: CLERK_APPEARANCE });
+      if (window.Clerk.mountSignIn) {
+        window.Clerk.mountSignIn(container, { appearance: CLERK_APPEARANCE, routing: 'virtual' });
+      }
     }
   } else {
     if (tabSignUp) {
@@ -200,9 +209,15 @@ function switchAuthTab(tab) {
       tabSignIn.style.color = '#94a3b8';
       tabSignIn.style.border = 'none';
     }
-    if (container && window.Clerk && window.Clerk.mountSignUp) {
+    if (container && window.Clerk) {
+      try {
+        if (window.Clerk.unmountSignIn) window.Clerk.unmountSignIn(container);
+        if (window.Clerk.unmountSignUp) window.Clerk.unmountSignUp(container);
+      } catch (e) {}
       container.innerHTML = '';
-      window.Clerk.mountSignUp(container, { routing: 'hash', appearance: CLERK_APPEARANCE });
+      if (window.Clerk.mountSignUp) {
+        window.Clerk.mountSignUp(container, { appearance: CLERK_APPEARANCE, routing: 'virtual' });
+      }
     }
   }
 }
@@ -233,9 +248,8 @@ async function handleClerkAuthState() {
       farmerIdInput.value = currentUser.id;
     }
 
-    // Mount Clerk user profile button
-    if (userBtnContainer) {
-      userBtnContainer.innerHTML = '';
+    // Mount Clerk user profile button safely
+    if (userBtnContainer && window.Clerk.mountUserButton && !userBtnContainer.hasChildNodes()) {
       window.Clerk.mountUserButton(userBtnContainer);
     }
 
@@ -268,14 +282,7 @@ async function handleClerkAuthState() {
     });
     
     // Mount Sign In / Sign Up widget inside auth portal
-    if (signInContainer && window.Clerk && window.Clerk.mountSignIn) {
-      signInContainer.innerHTML = '';
-      if (currentAuthTab === 'signup' && window.Clerk.mountSignUp) {
-        window.Clerk.mountSignUp(signInContainer, { routing: 'hash', appearance: CLERK_APPEARANCE });
-      } else {
-        window.Clerk.mountSignIn(signInContainer, { routing: 'hash', appearance: CLERK_APPEARANCE });
-      }
-    }
+    switchAuthTab(currentAuthTab);
     if (authGate) authGate.style.display = 'flex';
   }
 }
@@ -438,15 +445,32 @@ function updateFilterSummaryBanner() {
   }
 }
 
-function handleExportCsv() {
+async function handleExportCsv() {
   const params = new URLSearchParams();
   if (currentFilters.commodity) params.append('commodity', currentFilters.commodity);
   if (currentFilters.startDate) params.append('start_date', currentFilters.startDate);
   if (currentFilters.endDate) params.append('end_date', currentFilters.endDate);
   const qs = params.toString() ? `?${params.toString()}` : '';
 
-  showToast('⏳ Sedang menyiapkan data rekapitulasi Excel / CSV...', 'success');
-  window.location.href = `${API_BASE}/harvests/export/csv${qs}`;
+  try {
+    showToast('⏳ Sedang menyiapkan data rekapitulasi Excel / CSV...', 'success');
+    const resp = await apiFetch(`${API_BASE}/harvests/export/csv${qs}`);
+    if (!resp.ok) {
+      throw new Error('Gagal mengekspor data CSV');
+    }
+    const blob = await resp.blob();
+    const downloadUrl = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = downloadUrl;
+    a.download = `rekap_panen_agrisensa_${new Date().toISOString().slice(0,10)}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    window.URL.revokeObjectURL(downloadUrl);
+    showToast('✅ Berkas CSV berhasil diunduh.', 'success');
+  } catch (err) {
+    showToast('❌ Gagal mengunduh CSV: ' + err.message, 'error');
+  }
 }
 
 // ---------------------------------------------------------------------

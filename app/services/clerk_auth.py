@@ -47,10 +47,11 @@ class ClerkAuthService:
 
         # Check in-memory cache first to minimize external latency
         if user_id in self._cached_user_profiles:
-            return self._cached_user_profiles[user_id]
+            cached = self._cached_user_profiles[user_id]
+            return cached if cached else None
 
         try:
-            async with httpx.AsyncClient(timeout=5.0) as client:
+            async with httpx.AsyncClient(timeout=3.0) as client:
                 headers = {
                     "Authorization": f"Bearer {self.secret_key}",
                     "Content-Type": "application/json"
@@ -62,8 +63,10 @@ class ClerkAuthService:
                     return data
                 else:
                     logger.warning(f"Clerk API returned {resp.status_code} for user {user_id}")
+                    self._cached_user_profiles[user_id] = {}
         except Exception as e:
             logger.warning(f"Failed to fetch Clerk user details from API: {e}")
+            self._cached_user_profiles[user_id] = {}
 
         return None
 
