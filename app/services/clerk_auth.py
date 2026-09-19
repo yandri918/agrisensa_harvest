@@ -81,13 +81,17 @@ class ClerkAuthService:
         from app.services.db import db_manager
 
         auth_header = request.headers.get("Authorization")
-        header_user_id = request.headers.get("X-User-Id")
-        header_user_email = request.headers.get("X-User-Email")
-        header_user_name = request.headers.get("X-User-Name")
+        query_token = request.query_params.get("token") or request.query_params.get("auth_token")
+        query_user_id = request.query_params.get("user_id")
+        header_user_id = request.headers.get("X-User-Id") or query_user_id
+        header_user_email = request.headers.get("X-User-Email") or request.query_params.get("email")
+        header_user_name = request.headers.get("X-User-Name") or request.query_params.get("name")
 
         token = None
         if auth_header and auth_header.startswith("Bearer "):
             token = auth_header.replace("Bearer ", "").strip()
+        elif query_token:
+            token = query_token.strip()
 
         user_id = None
         user_email = header_user_email or "petani@agrisensa.ai"
@@ -106,7 +110,7 @@ class ClerkAuthService:
                     user_email = claims["email_address"]
                 is_verified = True
 
-        # 2. Jika ada user_id dari token atau X-User-Id header
+        # 2. Jika ada user_id dari token atau X-User-Id / query user_id
         if not user_id and header_user_id and header_user_id != "undefined" and header_user_id != "null":
             user_id = header_user_id
             is_verified = True

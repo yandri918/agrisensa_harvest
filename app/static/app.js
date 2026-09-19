@@ -1206,12 +1206,45 @@ function loadPreset(type) {
 // ---------------------------------------------------------------------
 // 7. ACTIONS & HELPERS
 // ---------------------------------------------------------------------
-// 7. ACTIONS & HELPERS
-// ---------------------------------------------------------------------
-
-function openPdfReport(harvestId) {
-  const reportUrl = `${API_BASE}/harvests/${harvestId}/report`;
-  window.open(reportUrl, '_blank');
+async function openPdfReport(harvestId) {
+  try {
+    showToast('⏳ Menyiapkan dokumen laporan resmi...', 'success');
+    
+    let token = '';
+    if (window.Clerk && window.Clerk.session) {
+      try {
+        token = await window.Clerk.session.getToken();
+      } catch (e) {}
+    }
+    
+    const qs = token ? `?token=${encodeURIComponent(token)}` : (currentUser ? `?user_id=${encodeURIComponent(currentUser.id)}` : '');
+    const reportUrl = `${API_BASE}/harvests/${harvestId}/report${qs}`;
+    
+    // 1. Fetch via authenticated apiFetch and open as responsive blob window
+    const resp = await apiFetch(`${API_BASE}/harvests/${harvestId}/report`);
+    if (!resp.ok) {
+      window.open(reportUrl, '_blank');
+      return;
+    }
+    
+    const html = await resp.text();
+    const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+    const blobUrl = URL.createObjectURL(blob);
+    const printWindow = window.open(blobUrl, '_blank');
+    if (!printWindow) {
+      window.open(reportUrl, '_blank');
+    }
+  } catch (err) {
+    console.warn('PDF report open notice:', err);
+    let token = '';
+    if (window.Clerk && window.Clerk.session) {
+      try {
+        token = await window.Clerk.session.getToken();
+      } catch (e) {}
+    }
+    const qs = token ? `?token=${encodeURIComponent(token)}` : '';
+    window.open(`${API_BASE}/harvests/${harvestId}/report${qs}`, '_blank');
+  }
 }
 
 function viewDetail(harvestId) {
